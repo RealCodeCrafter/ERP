@@ -36,9 +36,13 @@ import { ServeStaticModule } from '@nestjs/serve-static';
       rootPath: path.join(__dirname, '..', 'uploads'),
       serveRoot: '/uploads',
     }),
-    TypeOrmModule.forRoot({
+   TypeOrmModule.forRoot({
       type: 'postgres',
-      url: "postgresql://postgres:GufBxEipUYYmAZrIRRZzuzGnHlIUcLis@autorack.proxy.rlwy.net:27915/railway",
+      host: 'nozomi.proxy.rlwy.net',
+      port: 43482,
+      username: 'postgres',
+      password: 'RsGzZbKHlZwrLakJWmsKolSNEXwUgZVU',
+      database: 'railway',
       entities: [
         Course,
         Group,
@@ -53,8 +57,9 @@ import { ServeStaticModule } from '@nestjs/serve-static';
         superAdmin
       ],
       synchronize: true,
+      autoLoadEntities: true,
       ssl: {
-        rejectUnauthorized: false,
+        rejectUnauthorized: false
       },
     }),
     CoursesModule,
@@ -74,6 +79,10 @@ import { ServeStaticModule } from '@nestjs/serve-static';
   providers: [],
 })
 export class AppModule {}
+
+
+
+
 
 
 
