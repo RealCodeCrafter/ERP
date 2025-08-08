@@ -28,8 +28,8 @@ export class ProfilesService {
       firstName,
       lastName,
       photo,
-      username,
-      password,
+      username: username || null,
+      password: password,
       address,
       phone,
       parentsName,
@@ -81,7 +81,10 @@ export class ProfilesService {
     if (!profile) {
       throw new NotFoundException(`Profile with ID ${id} not found`);
     }
-    Object.assign(profile, updateProfileDto);
+    Object.assign(profile, {
+      ...updateProfileDto,
+      password: updateProfileDto.password 
+    });
     return this.profileRepository.save(profile);
   }
 

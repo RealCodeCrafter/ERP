@@ -64,12 +64,14 @@ export class StudentsService {
       throw new NotFoundException(`Ushbu telefon raqami bilan talaba avval qo‘shilgan: ${phone}`);
     }
 
-    const existingUsername = await this.studentRepository.findOne({ where: { username } });
-    if (existingUsername) {
-      throw new NotFoundException(`Ushbu foydalanuvchi nomi mavjud: ${username}`);
+    if (username) {
+      const existingUsername = await this.studentRepository.findOne({ where: { username } });
+      if (existingUsername) {
+        throw new NotFoundException(`Ushbu foydalanuvchi nomi mavjud: ${username}`);
+      }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
     const group = await this.groupRepository.findOne({ where: { id: groupId }, relations: ['course'] });
     if (!group) {
@@ -122,8 +124,24 @@ export class StudentsService {
       student.groups = [group];
     }
 
+    if (username) {
+      const existingUsername = await this.studentRepository.findOne({ where: { username } });
+      if (existingUsername && existingUsername.id !== id) {
+        throw new NotFoundException(`Ushbu foydalanuvchi nomi mavjud: ${username}`);
+      }
+    }
+
+    if (phone) {
+      const existingStudent = await this.studentRepository.findOne({ where: { phone } });
+      if (existingStudent && existingStudent.id !== id) {
+        throw new NotFoundException(`Ushbu telefon raqami bilan talaba avval qo‘shilgan: ${phone}`);
+      }
+    }
+
     if (password) {
       student.password = await bcrypt.hash(password, 10);
+    } else if (updateStudentDto.password === null) {
+      student.password = null;
     }
 
     Object.assign(student, {
@@ -131,14 +149,14 @@ export class StudentsService {
       lastName: lastName || student.lastName,
       phone: phone || student.phone,
       address: address || student.address,
-      username: username || student.username,
-      parentsName: parentsName || student.parentsName,
-      parentPhone: parentPhone || student.parentPhone,
+      username: username !== undefined ? username : student.username,
+      parentsName: parentsName !== undefined ? parentsName : student.parentsName,
+      parentPhone: parentPhone !== undefined ? parentPhone : student.parentPhone,
     });
 
     const updatedStudent = await this.studentRepository.save(student);
 
-    if (firstName || lastName || phone || address || username || password || parentsName || parentPhone) {
+    if (firstName || lastName || phone || address || username !== undefined || password !== undefined || parentsName !== undefined || parentPhone !== undefined) {
       const profile = await this.profileRepository.findOne({ where: { student: { id } } });
       if (profile) {
         Object.assign(profile, {
@@ -146,10 +164,10 @@ export class StudentsService {
           lastName: lastName || profile.lastName,
           phone: phone || profile.phone,
           address: address || profile.address,
-          username: username || profile.username,
-          password: password ? await bcrypt.hash(password, 10) : profile.password,
-          parentsName: parentsName || profile.parentsName,
-          parentPhone: parentPhone || profile.parentPhone,
+          username: username !== undefined ? username : profile.username,
+          password: password ? await bcrypt.hash(password, 10) : (updateStudentDto.password === null ? null : profile.password),
+          parentsName: parentsName !== undefined ? parentsName : profile.parentsName,
+          parentPhone: parentPhone !== undefined ? parentPhone : profile.parentPhone,
         });
         await this.profileRepository.save(profile);
       }

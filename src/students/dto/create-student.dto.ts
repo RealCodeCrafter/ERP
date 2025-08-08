@@ -27,12 +27,12 @@ export class CreateStudentDto {
   @IsNotEmpty()
   groupId: number;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   username?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   password?: string;
 
   @IsString()
