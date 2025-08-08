@@ -28,7 +28,6 @@ export class StudentsController {
     return this.studentsService.createStudent(createStudentDto);
   }
 
-  
   @Roles('admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get()
@@ -36,8 +35,6 @@ export class StudentsController {
     return this.studentsService.getAllStudents();
   }
 
-  
-  
   @Roles('admin', "teacher")
   @UseGuards(AuthGuard, RolesGuard)
   @Get('search')
@@ -45,14 +42,12 @@ export class StudentsController {
     return this.studentsService.searchStudents(name);
   }
 
-  
   @UseGuards(AuthGuard)
   @Get(':id')
   async getStudentById(@Param('id') id: number): Promise<Student> {
     return this.studentsService.getStudentById(id);
   }
 
-  
   @Roles('admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Put(':id')
@@ -63,7 +58,6 @@ export class StudentsController {
     return this.studentsService.updateStudent(id, updateStudentDto);
   }
 
-  
   @Roles('admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Delete(':id')

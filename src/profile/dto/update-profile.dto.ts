@@ -1,14 +1,16 @@
-import { IsString, IsNotEmpty, IsOptional, IsPhoneNumber, IsInt, IsPositive } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsPhoneNumber, IsInt, IsPositive, Length } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Length(3, 50)
   firstName?: string;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @Length(3, 50)
   lastName?: string;
 
   @IsOptional()
@@ -31,6 +33,15 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsPhoneNumber()
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 50)
+  parentsName?: string;
+
+  @IsOptional()
+  @IsPhoneNumber()
+  parentPhone?: string;
 
   @IsOptional()
   @IsInt()

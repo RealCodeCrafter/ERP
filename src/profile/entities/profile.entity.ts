@@ -8,10 +8,10 @@ export class Profile {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 50 , nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
   firstName: string;
 
-  @Column({ type: 'varchar', length: 50 , nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
   lastName: string;
 
   @Column({ type: 'varchar', nullable: true })
@@ -22,19 +22,25 @@ export class Profile {
 
   @Column({ type: 'varchar', nullable: true })
   password: string;
-  
-  @Column({ type: 'varchar', length: 255 , nullable: true })
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
   address: string;
 
   @Column({ type: 'varchar', length: 15, nullable: true })
   phone: string;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  parentsName: string;
+
+  @Column({ type: 'varchar', length: 15, nullable: true })
+  parentPhone: string;
+
   @OneToOne(() => Teacher, (teacher) => teacher.profile)
-  teacher: Teacher; 
-  
+  teacher: Teacher;
+
   @OneToOne(() => Admin, (admin) => admin.profile)
-  admin: Admin; 
-  
+  admin: Admin;
+
   @OneToOne(() => Student, (student) => student.profile)
-  student: Student; 
+  student: Student;
 }

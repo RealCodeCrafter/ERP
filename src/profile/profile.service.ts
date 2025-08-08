@@ -13,28 +13,35 @@ export class ProfilesService {
   constructor(
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
-
     @InjectRepository(Student)
     private readonly studentRepository: Repository<Student>,
-
     @InjectRepository(Admin)
     private readonly adminRepository: Repository<Admin>,
-
     @InjectRepository(Teacher)
     private readonly teacherRepository: Repository<Teacher>,
   ) {}
 
-  async createProfile(createProfileDto: CreateProfileDto): Promise<any> {
-    const { studentId, adminId, teacherId } = createProfileDto;
+  async createProfile(createProfileDto: CreateProfileDto): Promise<Profile> {
+    const { studentId, adminId, teacherId, firstName, lastName, photo, username, password, address, phone, parentsName, parentPhone } = createProfileDto;
 
-    let profileEntity = null;
-    
+    const profileData: Partial<Profile> = {
+      firstName,
+      lastName,
+      photo,
+      username,
+      password,
+      address,
+      phone,
+      parentsName,
+      parentPhone,
+    };
+
     if (studentId) {
       const student = await this.studentRepository.findOne({ where: { id: studentId } });
       if (!student) {
         throw new NotFoundException(`Student with ID ${studentId} not found`);
       }
-      profileEntity = { student };
+      profileData.student = student;
     }
 
     if (adminId) {
@@ -42,7 +49,7 @@ export class ProfilesService {
       if (!admin) {
         throw new NotFoundException(`Admin with ID ${adminId} not found`);
       }
-      profileEntity = { admin };
+      profileData.admin = admin;
     }
 
     if (teacherId) {
@@ -50,10 +57,10 @@ export class ProfilesService {
       if (!teacher) {
         throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
       }
-      profileEntity = { teacher };
+      profileData.teacher = teacher;
     }
 
-    const profile = this.profileRepository.create({ ...createProfileDto, ...profileEntity });
+    const profile = this.profileRepository.create(profileData);
     return this.profileRepository.save(profile);
   }
 
@@ -80,9 +87,6 @@ export class ProfilesService {
 
   async deleteProfile(id: number): Promise<void> {
     const profile = await this.getProfileById(id);
-    if (!profile) {
-      throw new NotFoundException(`Profile with ID ${id} not found`);
-    }
     await this.profileRepository.remove(profile);
   }
 
@@ -95,13 +99,11 @@ export class ProfilesService {
       ],
       relations: ['student', 'admin', 'teacher'],
     });
-  
+
     if (!profile) {
       throw new NotFoundException(`Profile not found`);
     }
-  
+
     return profile;
   }
-  
-  
 }

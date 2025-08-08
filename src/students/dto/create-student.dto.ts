@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsPhoneNumber, Length, IsInt } from 'class-validator';
+import { IsNotEmpty, IsString, IsPhoneNumber, Length, IsInt, IsOptional } from 'class-validator';
 
 export class CreateStudentDto {
   @IsString()
@@ -34,4 +34,13 @@ export class CreateStudentDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+
+  @IsString()
+  @IsOptional()
+  @Length(3, 50)
+  parentsName?: string;
+
+  @IsPhoneNumber()
+  @IsOptional()
+  parentPhone?: string;
 }
