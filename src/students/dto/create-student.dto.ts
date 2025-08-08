@@ -29,11 +29,11 @@ export class CreateStudentDto {
 
   @IsString()
   @IsNotEmpty()
-  username: string;
+  username?: string;
 
   @IsString()
   @IsNotEmpty()
-  password: string;
+  password?: string;
 
   @IsString()
   @IsOptional()
