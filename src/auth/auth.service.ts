@@ -7,12 +7,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { Admin } from '../admin/entities/admin.entity';
 import { Teacher } from '../teacher/entities/teacher.entity';
 import { Student } from '../students/entities/student.entity';
-import { SuperAdmin } from '../super-admin/entities/super-admin.entity';
-import { LoginDto } from './dto/create-auth.dto';
+import { Repository } from 'typeorm';
+import { SuperAdmin } from 'src/super-admin/entities/super-admin.entity';
 
 @Injectable()
 export class AuthService {
@@ -24,37 +23,32 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async login(loginDto: LoginDto) {
+  async login(loginDto: { username: string; password: string }) {
     let user: any;
-
+  
     // Foydalanuvchini topish
-    user = await this.adminRepository.findOne({ where: { username: loginDto.username }, relations: ['profile'] });
+    user = await this.adminRepository.findOne({ where: { username: loginDto.username } });
     if (!user) {
-      user = await this.teacherRepository.findOne({ where: { username: loginDto.username }, relations: ['profile'] });
+      user = await this.teacherRepository.findOne({ where: { username: loginDto.username } });
     }
     if (!user) {
-      user = await this.studentRepository.findOne({ where: { username: loginDto.username }, relations: ['profile'] });
+      user = await this.studentRepository.findOne({ where: { username: loginDto.username } });
     }
     if (!user) {
-      user = await this.superAdminRepository.findOne({ where: { username: loginDto.username }, relations: ['profile'] });
+      user = await this.superAdminRepository.findOne({ where: { username: loginDto.username } });
     }
-
+  
+    // Foydalanuvchi topilmasa
     if (!user) {
       throw new NotFoundException('User not found');
     }
-
-    // Parolni tekshirish
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid password');
-    }
-
+  
     // JWT tokenlar yaratish
     const payload = { id: user.id, username: user.username, role: user.role };
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(payload, { expiresIn: '30d' });
-
-    // Refresh tokenni saqlash
+  
+    // Foydalanuvchiga refresh tokenni saqlash
     user.refreshToken = refreshToken;
     if (user instanceof Admin) {
       await this.adminRepository.save(user);
@@ -63,15 +57,17 @@ export class AuthService {
     } else if (user instanceof Student) {
       await this.studentRepository.save(user);
     } else if (user instanceof SuperAdmin) {
-      await this.superAdminRepository.save(user)
+      await this.superAdminRepository.save(user); // SuperAdmin uchun ham saqlash
     }
-
+  
     return { accessToken, refreshToken, user };
   }
-
+  
+  
+  // Refresh token method
   async refreshAccessToken(refreshToken: string) {
     try {
-      const payload = this.jwtService.verify(refreshToken, { secret: process.env.JWT_SECRET });
+      const payload = this.jwtService.verify(refreshToken);
       let user;
 
       // Role bo'yicha foydalanuvchini topish
@@ -81,8 +77,6 @@ export class AuthService {
         user = await this.teacherRepository.findOne({ where: { id: payload.id } });
       } else if (payload.role === 'student') {
         user = await this.studentRepository.findOne({ where: { id: payload.id } });
-      } else if (payload.role === 'superAdmin') {
-        user = await this.superAdminRepository.findOne({ where: { id: payload.id } });
       }
 
       if (!user || user.refreshToken !== refreshToken) {
@@ -92,13 +86,10 @@ export class AuthService {
       const newAccessToken = this.jwtService.sign({
         id: user.id,
         username: user.username,
-        role: user.role,
+        role: user.role,  // roleni qo'shish
       });
 
-      const newRefreshToken = this.jwtService.sign(
-        { id: user.id, username: user.username, role: user.role },
-        { expiresIn: '30d' },
-      );
+      const newRefreshToken = this.jwtService.sign({ id: user.id }, { expiresIn: '30d' });
 
       user.refreshToken = newRefreshToken;
       if (user instanceof Admin) {
@@ -107,8 +98,6 @@ export class AuthService {
         await this.teacherRepository.save(user);
       } else if (user instanceof Student) {
         await this.studentRepository.save(user);
-      } else if (user instanceof SuperAdmin) {
-        await this.superAdminRepository.save(user);
       }
 
       return { accessToken: newAccessToken, newRefreshToken };
@@ -126,14 +115,12 @@ export class AuthService {
     if (!user) {
       user = await this.studentRepository.findOne({ where: { id: userId } });
     }
-    if (!user) {
-      user = await this.superAdminRepository.findOne({ where: { id: userId } });
-    }
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
+    // Refresh tokenni o'chirish
     user.refreshToken = null;
     if (user instanceof Admin) {
       await this.adminRepository.save(user);
@@ -141,25 +128,8 @@ export class AuthService {
       await this.teacherRepository.save(user);
     } else if (user instanceof Student) {
       await this.studentRepository.save(user);
-    } else if (user instanceof SuperAdmin) {
-      await this.superAdminRepository.save(user);
     }
 
     return { message: 'Logged out successfully' };
-  }
-
-  async getAuthStatistics() {
-    const adminCount = await this.adminRepository.count();
-    const superAdminCount = await this.superAdminRepository.count();
-    const teacherCount = await this.teacherRepository.count();
-    const studentCount = await this.studentRepository.count();
-
-    return {
-      totalUsers: adminCount + superAdminCount + teacherCount + studentCount,
-      adminCount,
-      superAdminCount,
-      teacherCount,
-      studentCount,
-    };
   }
 }
