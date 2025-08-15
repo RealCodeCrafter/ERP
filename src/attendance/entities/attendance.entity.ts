@@ -18,6 +18,6 @@ export class Attendance {
   status: 'present' | 'absent' | 'late';
 
   @ManyToOne(() => Teacher, teacher => teacher.attendances)
-teacher: Teacher;
+  teacher: Teacher;
 
 }

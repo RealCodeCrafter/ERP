@@ -63,11 +63,7 @@ export class AuthService {
     } else if (user instanceof Student) {
       await this.studentRepository.save(user);
     } else if (user instanceof SuperAdmin) {
-      await this.superAdminRepository.save(user);
-      // SMS xabarnomasi (superAdmin uchun)
-      if (user.smsNotificationsEnabled) {
-        await this.sendLoginSms(user.phone, user.username);
-      }
+      await this.superAdminRepository.save(user)
     }
 
     return { accessToken, refreshToken, user };
@@ -165,12 +161,5 @@ export class AuthService {
       teacherCount,
       studentCount,
     };
-  }
-
-  // Placeholder for SMS service integration
-  private async sendLoginSms(phone: string, username: string) {
-    // TODO: Integrate with SMS service (e.g., Twilio)
-    console.log(`Sending SMS to ${phone}: Login successful for user ${username}`);
-    // Masalan: await smsService.send(phone, `Login successful for user ${username}`);
   }
 }
