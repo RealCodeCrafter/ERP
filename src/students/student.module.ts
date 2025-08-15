@@ -9,10 +9,11 @@ import { StudentsController } from './student.controller';
 import { Attendance } from 'src/attendance/entities/attendance.entity';
 import { Payment } from 'src/payment/entities/payment.entity';
 import { AttendanceModule } from 'src/attendance/attendance.module';
+import { Lesson } from 'src/lesson/entities/lesson.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Student, Profile, Group, Attendance, Payment]),
+    TypeOrmModule.forFeature([Student, Profile, Group, Attendance, Payment, Lesson]),
     forwardRef(() => AttendanceModule),
   ],
   controllers: [StudentsController],

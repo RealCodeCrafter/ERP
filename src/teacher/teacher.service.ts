@@ -85,6 +85,45 @@ export class TeachersService {
     return teacher;
   }
 
+  async getTeacherProfile(id: number): Promise<any> {
+    const teacher = await this.teacherRepository.findOne({
+      where: { id },
+      relations: ['profile', 'groups', 'groups.students', 'groups.course'],
+    });
+    if (!teacher) {
+      throw new NotFoundException(`Teacher with ID ${id} not found`);
+    }
+    const dayTranslations: { [key: string]: string } = {
+      Monday: 'Dushanba',
+      Tuesday: 'Seshanba',
+      Wednesday: 'Chorshanba',
+      Thursday: 'Payshanba',
+      Friday: 'Juma',
+      Saturday: 'Shanba',
+      Sunday: 'Yakshanba',
+    };
+
+    // Guruhlar ma'lumotlarini formatlash
+    const groups = teacher.groups.map(group => ({
+      name: group.name,
+      courseName: group.course.name,
+      studentCount: group.students.length,
+      schedule: group.daysOfWeek
+        ? `${group.daysOfWeek.map(day => dayTranslations[day]).join(', ')} - ${group.startTime}-${group.endTime}`
+        : `${group.startTime}-${group.endTime}`,
+    }));
+
+    return {
+      id: teacher.id,
+      firstName: teacher.firstName,
+      lastName: teacher.lastName,
+      phone: teacher.phone,
+      address: teacher.address,
+      specialty: teacher.specialty,
+      groups,
+    };
+  }
+
   async updateTeacher(id: number, updateTeacherDto: UpdateTeacherDto): Promise<Teacher> {
     const teacher = await this.getTeacherById(id);
 

@@ -25,7 +25,7 @@ export class GroupsService {
   ) {}
 
   async createGroup(createGroupDto: CreateGroupDto): Promise<Group> {
-    const { name, courseId, teacherId, students } = createGroupDto;
+    const { name, courseId, teacherId, students, startTime, endTime, daysOfWeek } = createGroupDto;
 
     const course = await this.courseRepository.findOne({ where: { id: courseId } });
     if (!course) throw new BadRequestException('Course not found');
@@ -54,6 +54,9 @@ export class GroupsService {
       teacher,
       students: studentEntities,
       status: 'active',
+      startTime,
+      endTime,
+      daysOfWeek,
     });
 
     return this.groupRepository.save(group);
@@ -229,6 +232,9 @@ export class GroupsService {
   async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
     const group = await this.getGroupById(id);
     if (updateGroupDto.name) group.name = updateGroupDto.name;
+    if (updateGroupDto.startTime) group.startTime = updateGroupDto.startTime;
+    if (updateGroupDto.endTime) group.endTime = updateGroupDto.endTime;
+    if (updateGroupDto.daysOfWeek) group.daysOfWeek = updateGroupDto.daysOfWeek;
     return this.groupRepository.save(group);
   }
 

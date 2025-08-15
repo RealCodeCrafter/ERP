@@ -1,5 +1,4 @@
-
-import { IsOptional, IsString, IsNumber, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsIn } from 'class-validator';
 
 export class UpdateGroupDto {
   @IsOptional()
@@ -7,15 +6,16 @@ export class UpdateGroupDto {
   name?: string;
 
   @IsOptional()
-  @IsNumber()
-  courseId?: number; // Bitta kurs ID
+  @IsString()
+  startTime?: string;
 
   @IsOptional()
-  @IsNumber()
-  teacherId?: number; // Bitta o'qituvchi ID
+  @IsString()
+  endTime?: string;
 
   @IsOptional()
   @IsArray()
-  @IsNumber({}, { each: true })
-  students?: number[]; // Array of student IDs
+  @IsString({ each: true })
+  @IsIn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], { each: true, message: 'Each day must be a valid day of the week' })
+  daysOfWeek?: string[];
 }

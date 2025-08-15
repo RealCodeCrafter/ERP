@@ -14,6 +14,15 @@ export class Group {
   @Column({ type: 'varchar', length: 100 })
   name: string;
 
+  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm formati, masalan "09:00"
+  startTime: string;
+
+  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm formati, masalan "11:00"
+  endTime: string;
+
+  @Column({ type: 'varchar', array: true, nullable: true }) // Haftaning kunlari, masalan ["Monday", "Wednesday", "Saturday"]
+  daysOfWeek: string[];
+
   @Column({ type: 'enum', enum: ['active', 'frozen', 'completed'], default: 'active' })
   status: 'active' | 'frozen' | 'completed';
 

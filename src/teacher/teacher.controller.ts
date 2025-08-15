@@ -30,6 +30,13 @@ export class TeachersController {
     return this.teachersService.getTeacherById(id);
   }
 
+  @Roles('admin', 'teacher', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get(':id/profile')
+  async getTeacherProfile(@Param('id') id: number): Promise<any> {
+    return this.teachersService.getTeacherProfile(id);
+  }
+
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Put(':id')

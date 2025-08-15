@@ -37,6 +37,15 @@ export class StudentsController {
     return this.studentsService.getGraduatedStudents(name, groupId);
   }
 
+  
+  @Roles('admin', 'teacher', 'student')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get(':id/profile')
+  getStudentProfile(@Param('id') id: string) {
+    return this.studentsService.getStudentProfile(+id);
+  }
+
+  
   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('search')

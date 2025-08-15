@@ -9,6 +9,7 @@ import { Profile } from '../profile/entities/profile.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { Payment } from '../payment/entities/payment.entity';
 import * as bcrypt from 'bcrypt';
+import { Lesson } from 'src/lesson/entities/lesson.entity';
 
 @Injectable()
 export class StudentsService {
@@ -23,6 +24,8 @@ export class StudentsService {
     private readonly attendanceRepository: Repository<Attendance>,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
+    @InjectRepository(Lesson)
+    private readonly lessonRepository: Repository<Lesson>,
   ) {}
 
   async getAllStudents(): Promise<Student[]> {
@@ -277,4 +280,104 @@ export class StudentsService {
       })
       .sort((a, b) => b.presentCount - a.presentCount);
   }
+
+
+  async getStudentProfile(id: number): Promise<any> {
+  const student = await this.studentRepository.findOne({
+    where: { id },
+    relations: ['groups', 'groups.course', 'groups.teacher'],
+  });
+  if (!student) {
+    throw new NotFoundException(`Student with ID ${id} not found`);
+  }
+
+  // O'zbekcha kun nomlari uchun mapping
+  const dayTranslations: { [key: string]: string } = {
+    Monday: 'Dushanba',
+    Tuesday: 'Seshanba',
+    Wednesday: 'Chorshanba',
+    Thursday: 'Payshanba',
+    Friday: 'Juma',
+    Saturday: 'Shanba',
+    Sunday: 'Yakshanba',
+  };
+
+  // Guruhlar ma'lumotlarini formatlash
+  const groups = await Promise.all(
+    student.groups.map(async (group) => {
+      const firstLesson = await this.lessonRepository.findOne({
+        where: { group: { id: group.id } },
+        order: { lessonDate: 'ASC' },
+      });
+
+      const payments = await this.paymentRepository.find({
+        where: { student: { id }, group: { id: group.id } },
+        order: { createdAt: 'ASC' },
+      });
+
+      const totalPaid = payments
+        .filter(payment => payment.paid)
+        .reduce((sum, payment) => sum + payment.amount, 0);
+
+      let nextPaymentDate = null;
+      if (firstLesson) {
+        const daysSinceFirstLesson = Math.floor(
+          (new Date().getTime() - firstLesson.lessonDate.getTime()) / (1000 * 60 * 60 * 24),
+        );
+        const cycleNumber = Math.floor(daysSinceFirstLesson / 30) + 1;
+        const nextPayment = new Date(firstLesson.lessonDate);
+        nextPayment.setDate(nextPayment.getDate() + cycleNumber * 30);
+        nextPaymentDate = nextPayment.toLocaleDateString('uz-UZ', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        });
+      }
+
+      const paymentHistory = payments.map((payment, index) => ({
+        date: payment.createdAt.toLocaleDateString('uz-UZ', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        }),
+        amount: `${payment.amount.toLocaleString('uz-UZ')} so'm`,
+        status: payment.paid ? 'To‘langan' : 'Kechikkan',
+        note: `${index + 1}-oy`,
+      }));
+
+      const hasSchedule = group.daysOfWeek?.length && group.startTime && group.endTime;
+
+      return {
+        course: group.course?.name || 'N/A',
+        group: group.name,
+        teacher: group.teacher ? `${group.teacher.firstName} ${group.teacher.lastName}` : 'N/A',
+        startDate: firstLesson
+          ? firstLesson.lessonDate.toLocaleDateString('uz-UZ', {
+              day: '2-digit',
+              month: 'long',
+              year: 'numeric',
+            })
+          : 'N/A',
+        schedule: hasSchedule
+          ? `${group.daysOfWeek.map(day => dayTranslations[day]).join(', ')} - ${group.startTime}-${group.endTime}`
+          : '',
+        totalPaid: `${totalPaid.toLocaleString('uz-UZ')} so'm`,
+        nextPaymentDate,
+        payments: paymentHistory,
+      };
+    }),
+  );
+
+  return {
+    id: student.id,
+    firstName: student.firstName,
+    lastName: student.lastName,
+    phone: student.phone,
+    address: student.address,
+    parentsPhone: student.parentPhone,
+    parentsName: student.parentsName,
+    education: groups.length > 0 ? groups : [],
+  };
+}
+
 }

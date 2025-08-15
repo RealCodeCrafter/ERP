@@ -68,7 +68,6 @@ export class AttendanceService {
         throw new NotFoundException(`Student with ID ${attendanceDto.studentId} not found`);
       }
 
-      // Agar joriy tsikl birinchi tsikl bo'lsa, to'lov tekshiruvi o'tkazilmaydi
       if (!isFirstCycle) {
         const previousCycle = {
           startDate: new Date(currentCycle.startDate),
@@ -246,7 +245,9 @@ export class AttendanceService {
   @Cron('*/15 * * * *', { name: 'checkAttendanceReminders' })
   async checkAttendanceReminders() {
     const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // Joriy vaqt HH:mm formatida
     const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    const currentDay = now.toLocaleString('en-US', { weekday: 'long' }); // Joriy kun, masalan "Monday"
 
     const lessons = await this.lessonRepository.find({
       where: {
@@ -256,18 +257,42 @@ export class AttendanceService {
     });
 
     for (const lesson of lessons) {
-      const attendance = await this.attendanceRepository.findOne({
-        where: { lesson: { id: lesson.id } },
+      const group = await this.groupRepository.findOne({
+        where: { id: lesson.group.id },
+        relations: ['course', 'teacher'],
       });
+      if (!group.startTime || !group.daysOfWeek || !group.daysOfWeek.includes(currentDay)) {
+        continue; // Agar startTime yoki daysOfWeek yo'q bo'lsa yoki bugun dars kuni bo'lmasa, o'tkazib yuboriladi
+      }
 
-      if (!attendance) {
-        const superAdmins = await this.superAdminRepository.find({
-          where: { smsNotificationsEnabled: true },
+      const lessonDate = new Date(lesson.lessonDate);
+      const lessonStartTime = group.startTime;
+      const lessonStartDateTime = new Date(
+        `${lessonDate.toISOString().split('T')[0]}T${lessonStartTime}:00.000Z`,
+      );
+      const lessonEndDateTime = new Date(
+        `${lessonDate.toISOString().split('T')[0]}T${group.endTime}:00.000Z`,
+      );
+
+      // Dars boshlangan va 15 daqiqa o'tgan bo'lsa
+      if (
+        now >= lessonStartDateTime &&
+        now <= new Date(lessonStartDateTime.getTime() + 15 * 60 * 1000) &&
+        lessonStartDateTime <= now
+      ) {
+        const attendance = await this.attendanceRepository.findOne({
+          where: { lesson: { id: lesson.id } },
         });
-        for (const superAdmin of superAdmins) {
-          if (superAdmin.phone) {
-            const message = `Davomat qayd etilmadi: Guruh: ${lesson.group.name}, Kurs: ${lesson.group.course.name}, O'qituvchi: ${lesson.group.teacher.firstName} ${lesson.group.teacher.lastName}, Dars vaqti: ${lesson.lessonDate}, Yo'qlama hali kiritilmagan.`;
-            await this.smsService.sendSMS(superAdmin.phone, message);
+
+        if (!attendance) {
+          const superAdmins = await this.superAdminRepository.find({
+            where: { smsNotificationsEnabled: true },
+          });
+          for (const superAdmin of superAdmins) {
+            if (superAdmin.phone) {
+              const message = `Davomat qayd etilmadi: Guruh: ${group.name}, Kurs: ${group.course.name}, O'qituvchi: ${group.teacher.firstName} ${group.teacher.lastName}, Dars vaqti: ${lesson.lessonDate.toLocaleDateString('uz-UZ')} ${group.startTime}, Yo'qlama hali kiritilmagan.`;
+              await this.smsService.sendSMS(superAdmin.phone, message);
+            }
           }
         }
       }
