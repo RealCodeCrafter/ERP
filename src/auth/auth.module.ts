@@ -32,7 +32,7 @@ dotenv.config();
     TypeOrmModule.forFeature([Student, Teacher, Profile, Group, Course, Admin, Attendance, Lesson, SuperAdmin]),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET || 'juda_secret_key',
+      secret: 'juda_secret_key',
       signOptions: { expiresIn: '1d' },
     }),
     forwardRef(() => GroupsModule),
