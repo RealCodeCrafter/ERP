@@ -5,14 +5,14 @@ export class CreateGroupDto {
   name: string;
 
   @IsNumber()
-  courseId: number; // Bitta kurs ID
+  courseId: number;
 
   @IsOptional()
   @IsNumber()
-  teacherId?: number; // Bitta o'qituvchi ID
+  teacherId?: number;
 
   @IsOptional()
   @IsArray()
   @IsNumber({}, { each: true })
-  students?: number[]; // Array of student IDs
+  students?: number[];
 }

@@ -19,9 +19,6 @@ export class CreateLessonDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
-
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateAttendanceDto)
-  attendance: CreateAttendanceDto[];
+  
+  attendance?: { studentId: number; status: 'present' | 'absent' | 'late' }[];
 }

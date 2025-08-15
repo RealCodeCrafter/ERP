@@ -1,4 +1,9 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateSuperAdminDto } from './create-super-admin.dto';
-
-export class UpdateSuperAdminDto extends PartialType(CreateSuperAdminDto) {}
+export class UpdateSuperAdminDto {
+  username?: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  address?: string;
+  smsNotificationsEnabled?: boolean;
+}

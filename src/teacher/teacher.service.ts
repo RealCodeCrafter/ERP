@@ -1,11 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Teacher } from './entities/teacher.entity';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
+import { Profile } from '../profile/entities/profile.entity';
+import { Group } from '../groups/entities/group.entity';
+import { Student } from '../students/entities/student.entity';
+import { Attendance } from '../attendance/entities/attendance.entity';
 import * as bcrypt from 'bcrypt';
-import { Profile } from 'src/profile/entities/profile.entity';
 
 @Injectable()
 export class TeachersService {
@@ -14,81 +17,173 @@ export class TeachersService {
     private readonly teacherRepository: Repository<Teacher>,
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
+    @InjectRepository(Group)
+    private readonly groupRepository: Repository<Group>,
+    @InjectRepository(Student)
+    private readonly studentRepository: Repository<Student>,
+    @InjectRepository(Attendance)
+    private readonly attendanceRepository: Repository<Attendance>,
   ) {}
 
   async createTeacher(createTeacherDto: CreateTeacherDto): Promise<Teacher> {
-    const { phone, username, password, firstName, lastName, address } = createTeacherDto;
-  
-    // Telefon raqami mavjudligini tekshirish
-    const existingTeacher = await this.teacherRepository.findOne({
-      where: { phone },
-    });
+    const { phone, username, password, firstName, lastName, address, specialty } = createTeacherDto;
+
+    const existingTeacher = await this.teacherRepository.findOne({ where: { phone } });
     if (existingTeacher) {
-      throw new NotFoundException(`O'qituvchi telefon raqami ${phone} allaqachon mavjud`);
+      throw new ConflictException(`Teacher with phone ${phone} already exists`);
     }
-  
-    // Foydalanuvchi nomi mavjudligini tekshirish
-    const existingUsername = await this.teacherRepository.findOne({
-      where: { username },
-    });
+
+    const existingUsername = await this.teacherRepository.findOne({ where: { username } });
     if (existingUsername) {
-      throw new NotFoundException(`Ushbu foydalanuvchi nomi allaqachon mavjud: ${username}`);
+      throw new ConflictException(`Username ${username} already exists`);
     }
-  
-    // Parolni hash qilish
+
     const hashedPassword = await bcrypt.hash(password, 10);
-  
-    // Profile yaratish va saqlash
+
     const profile = this.profileRepository.create({
       firstName,
       lastName,
       username,
-      password: hashedPassword, // Hashlangan parol
+      password: hashedPassword,
       phone,
       address,
     });
     await this.profileRepository.save(profile);
-  
-    // O'qituvchi yaratish va profile bilan bog'lash
+
     const teacher = this.teacherRepository.create({
       ...createTeacherDto,
-      password: hashedPassword, // Hashlangan parol
-      profile, // Bog'lanayotgan profil
+      password: hashedPassword,
+      profile,
     });
-  
+
     return await this.teacherRepository.save(teacher);
   }
-  
-  async getAllTeachers(): Promise<Teacher[]> {
-    const teachers = await this.teacherRepository.find({ relations: ['groups'] });
+
+  async getAllTeachers(groupId?: number): Promise<Teacher[]> {
+    const query: any = {};
+    if (groupId) {
+      query.groups = { id: groupId };
+    }
+    const teachers = await this.teacherRepository.find({ 
+      where: query,
+      relations: ['groups', 'groups.students', 'profile', 'attendances'] 
+    });
     if (teachers.length === 0) {
-      throw new NotFoundException('Hech qanday o‘qituvchi topilmadi');
+      throw new NotFoundException('No teachers found');
     }
     return teachers;
   }
 
   async getTeacherById(id: number): Promise<Teacher> {
-    const teacher = await this.teacherRepository.findOne({ where: { id }, relations: ['groups'] });
+    const teacher = await this.teacherRepository.findOne({
+      where: { id },
+      relations: ['groups', 'groups.students', 'profile', 'attendances'],
+    });
     if (!teacher) {
-      throw new NotFoundException(`O'qituvchi ID ${id} topilmadi`);
+      throw new NotFoundException(`Teacher with ID ${id} not found`);
     }
     return teacher;
   }
 
   async updateTeacher(id: number, updateTeacherDto: UpdateTeacherDto): Promise<Teacher> {
     const teacher = await this.getTeacherById(id);
-    if (!teacher) {
-      throw new NotFoundException(`O'qituvchi ID ${id} topilmadi`);
+
+    const { phone, username, password, firstName, lastName, address, specialty } = updateTeacherDto;
+
+    if (phone && phone !== teacher.phone) {
+      const existingTeacher = await this.teacherRepository.findOne({ where: { phone } });
+      if (existingTeacher && existingTeacher.id !== id) {
+        throw new ConflictException(`Teacher with phone ${phone} already exists`);
+      }
     }
-    Object.assign(teacher, updateTeacherDto);
-    return await this.teacherRepository.save(teacher);
+
+    if (username && username !== teacher.username) {
+      const existingUsername = await this.teacherRepository.findOne({ where: { username } });
+      if (existingUsername && existingUsername.id !== id) {
+        throw new ConflictException(`Username ${username} already exists`);
+      }
+    }
+
+    if (password) {
+      teacher.password = await bcrypt.hash(password, 10);
+    }
+
+    Object.assign(teacher, {
+      firstName: firstName || teacher.firstName,
+      lastName: lastName || teacher.lastName,
+      phone: phone || teacher.phone,
+      address: address || teacher.address,
+      username: username || teacher.username,
+      specialty: specialty || teacher.specialty,
+    });
+
+    const updatedTeacher = await this.teacherRepository.save(teacher);
+
+    const profile = await this.profileRepository.findOne({ where: { teacher: { id } } });
+    if (profile) {
+      Object.assign(profile, {
+        firstName: firstName || profile.firstName,
+        lastName: lastName || profile.lastName,
+        phone: phone || profile.phone,
+        address: address || profile.address,
+        username: username || profile.username,
+        password: password ? await bcrypt.hash(password, 10) : profile.password,
+      });
+      await this.profileRepository.save(profile);
+    }
+
+    return updatedTeacher;
   }
 
   async deleteTeacher(id: number): Promise<void> {
     const teacher = await this.getTeacherById(id);
-    if (!teacher) {
-      throw new NotFoundException(`O'qituvchi ID ${id} topilmadi`);
-    }
     await this.teacherRepository.remove(teacher);
+  }
+
+  async searchTeachers(name: string, groupId?: number): Promise<Teacher[]> {
+    const query: any = {};
+    if (name) {
+      query.firstName = ILike(`%${name}%`);
+    }
+    if (groupId) {
+      query.groups = { id: groupId };
+    }
+    const teachers = await this.teacherRepository.find({
+      where: query,
+      relations: ['groups', 'groups.students', 'profile', 'attendances'],
+    });
+    if (teachers.length === 0) {
+      throw new NotFoundException(`No teachers found for name "${name}"`);
+    }
+    return teachers;
+  }
+
+  async getTeacherStatistics(groupId?: number): Promise<any[]> {
+    const query: any = {};
+    if (groupId) {
+      query.groups = { id: groupId };
+    }
+    const teachers = await this.teacherRepository.find({
+      where: query,
+      relations: ['groups', 'groups.students', 'groups.attendances'],
+    });
+
+    return teachers.map(teacher => {
+      const groupCount = teacher.groups.length;
+      const studentCount = teacher.groups.reduce((sum, group) => sum + group.students.length, 0);
+      const attendances = teacher.groups.flatMap(group => group.attendances || []);
+      const totalAttendances = attendances.length;
+      const presentCount = attendances.filter(att => att.status === 'present').length;
+      const attendanceRate = totalAttendances > 0 ? (presentCount / totalAttendances) * 100 : 0;
+
+      return {
+        teacher,
+        groupCount,
+        studentCount,
+        attendanceRate: Number(attendanceRate.toFixed(2)),
+        totalAttendances,
+        presentCount,
+      };
+    });
   }
 }

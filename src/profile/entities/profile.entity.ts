@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'ty
 import { Teacher } from 'src/teacher/entities/teacher.entity';
 import { Admin } from 'src/admin/entities/admin.entity';
 import { Student } from 'src/students/entities/student.entity';
+import { SuperAdmin } from 'src/super-admin/entities/super-admin.entity';
 
 @Entity('profiles')
 export class Profile {
@@ -43,4 +44,7 @@ export class Profile {
 
   @OneToOne(() => Student, (student) => student.profile)
   student: Student;
+  
+  @OneToOne(() => SuperAdmin, (SuperAdmin) => SuperAdmin.profile)
+  SuperAdmin: SuperAdmin;
 }

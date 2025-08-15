@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { Student } from '../../students/entities/student.entity';
 import { Lesson } from '../../lesson/entities/lesson.entity';
+import { Teacher } from 'src/teacher/entities/teacher.entity';
 
 @Entity('attendance')
 export class Attendance {
@@ -13,6 +14,10 @@ export class Attendance {
   @ManyToOne(() => Lesson, (lesson) => lesson.attendances, { onDelete: 'CASCADE' })
   lesson: Lesson;
 
-  @Column({ default: false })
-  status: boolean; // False: yo'q; True: bor
+  @Column({ type: 'enum', enum: ['present', 'absent', 'late'], default: 'absent' })
+  status: 'present' | 'absent' | 'late';
+
+  @ManyToOne(() => Teacher, teacher => teacher.attendances)
+teacher: Teacher;
+
 }

@@ -1,13 +1,5 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
-import { Assignment } from '../../assignments/entities/assignment.entity';
 import { Attendance } from '../../attendance/entities/attendance.entity';
 
 @Entity('lessons')
@@ -15,13 +7,13 @@ export class Lesson {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ type: 'varchar', length: 100 , nullable: true})
   lessonName: string;
 
-  @Column({nullable: true})
+  @Column({ type: 'varchar', length: 50, default: 0 })
   lessonNumber: string;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @Column({ type: 'timestamp' })
   lessonDate: Date;
 
   @Column({ type: 'timestamp', nullable: true })
@@ -29,9 +21,6 @@ export class Lesson {
 
   @ManyToOne(() => Group, (group) => group.lessons, { onDelete: 'CASCADE' })
   group: Group;
-
-  @OneToMany(() => Assignment, (assignment) => assignment.lesson)
-  assignments: Assignment[];
 
   @OneToMany(() => Attendance, (attendance) => attendance.lesson)
   attendances: Attendance[];

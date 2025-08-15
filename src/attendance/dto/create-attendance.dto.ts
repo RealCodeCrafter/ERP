@@ -1,10 +1,16 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, IsDateString, IsArray, ValidateNested, isBoolean, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsEnum, IsArray } from 'class-validator';
 
 export class CreateAttendanceDto {
-  @IsInt()
-  studentId: number;
+  @IsNotEmpty()
+  @IsNumber()
+  lessonId: number;
 
-  @IsBoolean()
-  status: boolean;
+  @IsNotEmpty()
+  @IsArray()
+  attendances: { studentId: number; status: 'present' | 'absent' | 'late' }[];
 }
 
+export class UpdateAttendanceDto {
+  @IsEnum(['present', 'absent', 'late'])
+  status?: string;
+}

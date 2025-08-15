@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Student } from './entities/student.entity';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { Group } from '../groups/entities/group.entity';
-import { Profile } from 'src/profile/entities/profile.entity';
+import { Profile } from '../profile/entities/profile.entity';
+import { Attendance } from '../attendance/entities/attendance.entity';
+import { Payment } from '../payment/entities/payment.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -17,14 +19,90 @@ export class StudentsService {
     private readonly groupRepository: Repository<Group>,
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
+    @InjectRepository(Attendance)
+    private readonly attendanceRepository: Repository<Attendance>,
+    @InjectRepository(Payment)
+    private readonly paymentRepository: Repository<Payment>,
   ) {}
 
   async getAllStudents(): Promise<Student[]> {
     const students = await this.studentRepository.find({
-      relations: ['groups', 'groups.course', 'profile'],
+      relations: ['groups', 'groups.course', 'profile', 'payments'],
     });
     if (students.length === 0) {
-      throw new NotFoundException('Hech qanday talaba topilmadi');
+      throw new NotFoundException('No students found');
+    }
+    return students;
+  }
+
+  async getActiveStudents(name: string, groupId: number): Promise<Student[]> {
+    const query: any = { groups: { status: 'active' } };
+    if (name) {
+      query.firstName = ILike(`%${name}%`);
+    }
+    if (groupId) {
+      query.groups = { id: groupId, status: 'active' };
+    }
+    const students = await this.studentRepository.find({
+      where: query,
+      relations: ['groups', 'groups.course', 'profile', 'payments'],
+    });
+    if (students.length === 0) {
+      throw new NotFoundException('No active students found');
+    }
+    return students;
+  }
+
+  async getGraduatedStudents(name: string, groupId: number): Promise<Student[]> {
+    const query: any = { groups: { status: 'completed' } };
+    if (name) {
+      query.firstName = ILike(`%${name}%`);
+    }
+    if (groupId) {
+      query.groups = { id: groupId, status: 'completed' };
+    }
+    const students = await this.studentRepository.find({
+      where: query,
+      relations: ['groups', 'groups.course', 'profile', 'payments'],
+    });
+    if (students.length === 0) {
+      throw new NotFoundException('No graduated students found');
+    }
+    return students;
+  }
+
+  async getPaidStudents(name: string, groupId: number): Promise<Student[]> {
+    const query: any = { payments: { paid: true } };
+    if (name) {
+      query.firstName = ILike(`%${name}%`);
+    }
+    if (groupId) {
+      query.groups = { id: groupId };
+    }
+    const students = await this.studentRepository.find({
+      where: query,
+      relations: ['groups', 'groups.course', 'profile', 'payments'],
+    });
+    if (students.length === 0) {
+      throw new NotFoundException('No students with paid status found');
+    }
+    return students;
+  }
+
+  async getUnpaidStudents(name: string, groupId: number): Promise<Student[]> {
+    const query: any = { payments: { paid: false } };
+    if (name) {
+      query.firstName = ILike(`%${name}%`);
+    }
+    if (groupId) {
+      query.groups = { id: groupId };
+    }
+    const students = await this.studentRepository.find({
+      where: query,
+      relations: ['groups', 'groups.course', 'profile', 'payments'],
+    });
+    if (students.length === 0) {
+      throw new NotFoundException('No students with unpaid status found');
     }
     return students;
   }
@@ -32,10 +110,10 @@ export class StudentsService {
   async getStudentById(id: number): Promise<Student> {
     const student = await this.studentRepository.findOne({
       where: { id },
-      relations: ['groups', 'groups.course', 'profile'],
+      relations: ['groups', 'groups.course', 'profile', 'payments'],
     });
     if (!student) {
-      throw new NotFoundException(`ID ${id} bo‘yicha talaba topilmadi`);
+      throw new NotFoundException(`Student with ID ${id} not found`);
     }
     return student;
   }
@@ -47,11 +125,11 @@ export class StudentsService {
         { lastName: ILike(`%${name}%`) },
         { parentsName: ILike(`%${name}%`) },
       ],
-      relations: ['groups', 'groups.course', 'profile'],
+      relations: ['groups', 'groups.course', 'profile', 'payments'],
     });
 
     if (students.length === 0) {
-      throw new NotFoundException(`"${name}" bo‘yicha talaba topilmadi`);
+      throw new NotFoundException(`No students found for name "${name}"`);
     }
     return students;
   }
@@ -61,13 +139,13 @@ export class StudentsService {
 
     const existingStudent = await this.studentRepository.findOne({ where: { phone } });
     if (existingStudent) {
-      throw new NotFoundException(`Ushbu telefon raqami bilan talaba avval qo‘shilgan: ${phone}`);
+      throw new NotFoundException(`Student with phone ${phone} already exists`);
     }
 
     if (username) {
       const existingUsername = await this.studentRepository.findOne({ where: { username } });
       if (existingUsername) {
-        throw new NotFoundException(`Ushbu foydalanuvchi nomi mavjud: ${username}`);
+        throw new NotFoundException(`Username ${username} already exists`);
       }
     }
 
@@ -75,7 +153,7 @@ export class StudentsService {
 
     const group = await this.groupRepository.findOne({ where: { id: groupId }, relations: ['course'] });
     if (!group) {
-      throw new NotFoundException(`ID ${groupId} bo‘yicha guruh topilmadi`);
+      throw new NotFoundException(`Group with ID ${groupId} not found`);
     }
 
     const profile = this.profileRepository.create({
@@ -119,7 +197,7 @@ export class StudentsService {
         relations: ['course'],
       });
       if (!group) {
-        throw new NotFoundException(`ID ${groupId} bo‘yicha guruh topilmadi`);
+        throw new NotFoundException(`Group with ID ${groupId} not found`);
       }
       student.groups = [group];
     }
@@ -127,14 +205,14 @@ export class StudentsService {
     if (username) {
       const existingUsername = await this.studentRepository.findOne({ where: { username } });
       if (existingUsername && existingUsername.id !== id) {
-        throw new NotFoundException(`Ushbu foydalanuvchi nomi mavjud: ${username}`);
+        throw new NotFoundException(`Username ${username} already exists`);
       }
     }
 
     if (phone) {
       const existingStudent = await this.studentRepository.findOne({ where: { phone } });
       if (existingStudent && existingStudent.id !== id) {
-        throw new NotFoundException(`Ushbu telefon raqami bilan talaba avval qo‘shilgan: ${phone}`);
+        throw new NotFoundException(`Student with phone ${phone} already exists`);
       }
     }
 
@@ -179,5 +257,24 @@ export class StudentsService {
   async deleteStudent(id: number): Promise<void> {
     const student = await this.getStudentById(id);
     await this.studentRepository.remove(student);
+  }
+
+  async getAttendanceRanking(): Promise<any[]> {
+    const students = await this.studentRepository.find({
+      relations: ['attendances', 'attendances.lesson', 'groups'],
+    });
+
+    return students
+      .map(student => {
+        const presentCount = student.attendances.filter(att => att.status === 'present').length;
+        const totalCount = student.attendances.length;
+        return {
+          student,
+          presentCount,
+          totalCount,
+          attendanceRate: totalCount > 0 ? (presentCount / totalCount) * 100 : 0,
+        };
+      })
+      .sort((a, b) => b.presentCount - a.presentCount);
   }
 }

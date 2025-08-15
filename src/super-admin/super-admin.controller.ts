@@ -1,34 +1,59 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Patch, ParseIntPipe } from '@nestjs/common';
 import { SuperAdminService } from './super-admin.service';
 import { CreateSuperAdminDto } from './dto/create-super-admin.dto';
 import { UpdateSuperAdminDto } from './dto/update-super-admin.dto';
+import { AuthGuard, Roles, RolesGuard } from '../auth/auth.guard';
 
 @Controller('super-admin')
 export class SuperAdminController {
   constructor(private readonly superAdminService: SuperAdminService) {}
 
+  @Roles('superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get()
+  getAll() {
+    return this.superAdminService.getAll();
+  }
+
+  @Roles('superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
   @Post()
   create(@Body() createSuperAdminDto: CreateSuperAdminDto) {
     return this.superAdminService.create(createSuperAdminDto);
   }
 
-  @Get()
-  findAll() {
-    return this.superAdminService.findAll();
+  @Roles('superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Put(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateSuperAdminDto: UpdateSuperAdminDto) {
+    return this.superAdminService.update(id, updateSuperAdminDto);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.superAdminService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateSuperAdminDto: UpdateSuperAdminDto) {
-    return this.superAdminService.update(+id, updateSuperAdminDto);
-  }
-
+  @Roles('superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.superAdminService.remove(+id);
+  delete(@Param('id', ParseIntPipe) id: number) {
+    return this.superAdminService.delete(id);
+  }
+
+  @Roles('superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('search')
+  searchSuperAdmins(@Query('name') name: string) {
+    return this.superAdminService.searchSuperAdmins(name);
+  }
+
+  @Roles('superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Patch(':id/sms-notifications')
+  toggleSmsNotifications(@Param('id', ParseIntPipe) id: number, @Body('enable') enable: boolean) {
+    return this.superAdminService.toggleSmsNotifications(id, enable);
+  }
+
+  @Roles('superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('statistics')
+  getStatistics() {
+    return this.superAdminService.getStatistics();
   }
 }

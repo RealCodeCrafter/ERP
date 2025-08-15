@@ -19,37 +19,30 @@ import { StudentsService } from '../students/student.service';
 import { AdminModule } from '../admin/admin.module';
 import { AttendanceModule } from '../attendance/attendance.module';
 import { Attendance } from '../attendance/entities/attendance.entity';
-import { Assignment } from 'src/assignments/entities/assignment.entity';
-import { Lesson } from 'src/lesson/entities/lesson.entity';
-import { Admin } from 'src/admin/entities/admin.entity';
-import { Submission } from 'src/submissions/entities/submission.entity';
-import { AssignmentsModule } from 'src/assignments/assignments.module';
-import { LessonsModule } from 'src/lesson/lesson.module';
-import { SubmissionsModule } from 'src/submissions/submissions.module';
-import { superAdmin } from 'src/super-admin/entities/super-admin.entity';
-import { SuperAdminModule } from 'src/super-admin/super-admin.module';
+import { Lesson } from '../lesson/entities/lesson.entity';
+import { Admin } from '../admin/entities/admin.entity';
+import { LessonsModule } from '../lesson/lesson.module';
+import { SuperAdmin } from '../super-admin/entities/super-admin.entity';
+import { SuperAdminModule } from '../super-admin/super-admin.module';
 
 dotenv.config();
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Student, Teacher, Profile, Group, Course, Admin, Attendance, Assignment, Lesson, Submission, superAdmin]),
+    TypeOrmModule.forFeature([Student, Teacher, Profile, Group, Course, Admin, Attendance, Lesson, SuperAdmin]),
     JwtModule.register({
       global: true,
-      secret: "juda_secret_key",
+      secret: process.env.JWT_SECRET || 'juda_secret_key',
       signOptions: { expiresIn: '1d' },
     }),
-    GroupsModule,
-    ProfilesModule,
-    CoursesModule,
-    AdminModule,
-    AttendanceModule,
-    TeachersModule,
-    AdminModule,
-    AssignmentsModule,
-    LessonsModule,
-    SubmissionsModule,
-    SuperAdminModule
+    forwardRef(() => GroupsModule),
+    forwardRef(() => ProfilesModule),
+    forwardRef(() => CoursesModule),
+    forwardRef(() => AdminModule),
+    forwardRef(() => AttendanceModule),
+    forwardRef(() => TeachersModule),
+    forwardRef(() => LessonsModule),
+    forwardRef(() => SuperAdminModule),
   ],
   controllers: [AuthController],
   providers: [AuthService, TeachersService, StudentsService],

@@ -1,10 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-  SetMetadata,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException, SetMetadata } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 
@@ -19,29 +13,29 @@ export class AuthGuard implements CanActivate {
     const authHeader = request.headers.authorization;
 
     if (!authHeader) {
-      throw new UnauthorizedException('Token mavjud emas');
+      throw new UnauthorizedException('Token not provided');
     }
 
     const [type, token] = authHeader.split(' ');
 
     if (type !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Token formati noto‘g‘ri');
+      throw new UnauthorizedException('Invalid token format');
     }
 
     try {
       const payload = this.jwtService.verify(token, {
         secret: process.env.JWT_SECRET,
       });
-      request.user = payload; // Foydalanuvchi ma'lumotlarini so'rovga qo'shish
+      request.user = payload;
       return true;
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
-        throw new UnauthorizedException('Token muddati tugagan');
+        throw new UnauthorizedException('Token has expired');
       }
       if (error.name === 'JsonWebTokenError') {
-        throw new UnauthorizedException('Token noto‘g‘ri');
+        throw new UnauthorizedException('Invalid token');
       }
-      throw new UnauthorizedException('Token tekshirish xatosi');
+      throw new UnauthorizedException('Token verification failed');
     }
   }
 }
@@ -53,18 +47,18 @@ export class RolesGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
     if (!requiredRoles) {
-      return true; // Rol kerak emas
+      return true;
     }
 
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
     if (!user || !user.role) {
-      throw new UnauthorizedException('Foydalanuvchi autentifikatsiya qilinmagan yoki rol etishmayapti');
+      throw new UnauthorizedException('User not authenticated or role missing');
     }
 
     if (!requiredRoles.includes(user.role)) {
-      throw new UnauthorizedException('Ushbu amalni bajarishga ruxsat yo‘q');
+      throw new UnauthorizedException('Insufficient permissions for this action');
     }
 
     return true;
