@@ -13,13 +13,13 @@ export class AuthGuard implements CanActivate {
     const authHeader = request.headers.authorization;
 
     if (!authHeader) {
-      throw new UnauthorizedException('Token not provided');
+      throw new UnauthorizedException('Token mavjud emas');
     }
 
     const [type, token] = authHeader.split(' ');
 
     if (type !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Invalid token format');
+      throw new UnauthorizedException('Token formati noto‘g‘ri');
     }
 
     try {
@@ -30,12 +30,12 @@ export class AuthGuard implements CanActivate {
       return true;
     } catch (error) {
       if (error.name === 'TokenExpiredError') {
-        throw new UnauthorizedException('Token has expired');
+        throw new UnauthorizedException('Token muddati tugagan');
       }
       if (error.name === 'JsonWebTokenError') {
-        throw new UnauthorizedException('Invalid token');
+        throw new UnauthorizedException('Token noto‘g‘ri');
       }
-      throw new UnauthorizedException('Token verification failed');
+      throw new UnauthorizedException('Token tekshirish xatosi');
     }
   }
 }
@@ -54,11 +54,11 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
 
     if (!user || !user.role) {
-      throw new UnauthorizedException('User not authenticated or role missing');
+      throw new UnauthorizedException('Foydalanuvchi autentifikatsiya qilinmagan yoki rol etishmayapti');
     }
 
     if (!requiredRoles.includes(user.role)) {
-      throw new UnauthorizedException('Insufficient permissions for this action');
+      throw new UnauthorizedException('Ushbu amalni bajarishga ruxsat yo‘q');
     }
 
     return true;

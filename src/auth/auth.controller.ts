@@ -1,8 +1,8 @@
-import { Controller, Post, Body, UnauthorizedException, Req, UseGuards, Res, Get } from '@nestjs/common';
+import { Controller, Post, Body, UnauthorizedException, Req, UseGuards, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/create-auth.dto';
 import { RefreshTokenDto } from './dto/RefreshTokenDto';
-import { AuthGuard, Roles, RolesGuard } from './auth.guard';
+import { AuthGuard } from './auth.guard';
 import { Response } from 'express';
 
 @Controller('auth')
@@ -16,6 +16,7 @@ export class AuthController {
 
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
@@ -33,6 +34,7 @@ export class AuthController {
 
       res.cookie('refreshToken', newRefreshToken, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
@@ -56,12 +58,5 @@ export class AuthController {
     } catch (error) {
       throw new UnauthorizedException(error.message);
     }
-  }
-
-  @Roles('superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('statistics')
-  async getStatistics() {
-    return this.authService.getAuthStatistics();
   }
 }

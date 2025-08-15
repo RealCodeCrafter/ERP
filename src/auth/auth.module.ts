@@ -19,30 +19,30 @@ import { StudentsService } from '../students/student.service';
 import { AdminModule } from '../admin/admin.module';
 import { AttendanceModule } from '../attendance/attendance.module';
 import { Attendance } from '../attendance/entities/attendance.entity';
-import { Lesson } from '../lesson/entities/lesson.entity';
-import { Admin } from '../admin/entities/admin.entity';
-import { LessonsModule } from '../lesson/lesson.module';
-import { SuperAdmin } from '../super-admin/entities/super-admin.entity';
-import { SuperAdminModule } from '../super-admin/super-admin.module';
+import { Lesson } from 'src/lesson/entities/lesson.entity';
+import { Admin } from 'src/admin/entities/admin.entity';
+import { LessonsModule } from 'src/lesson/lesson.module';
+import { SuperAdminModule } from 'src/super-admin/super-admin.module';
 
 dotenv.config();
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Student, Teacher, Profile, Group, Course, Admin, Attendance, Lesson, SuperAdmin]),
+    TypeOrmModule.forFeature([Student, Teacher, Profile, Group, Course, Admin, Attendance, Lesson]),
     JwtModule.register({
       global: true,
-      secret: 'juda_secret_key',
+      secret: "juda_secret_key",
       signOptions: { expiresIn: '1d' },
     }),
-    forwardRef(() => GroupsModule),
-    forwardRef(() => ProfilesModule),
-    forwardRef(() => CoursesModule),
-    forwardRef(() => AdminModule),
-    forwardRef(() => AttendanceModule),
-    forwardRef(() => TeachersModule),
-    forwardRef(() => LessonsModule),
-    forwardRef(() => SuperAdminModule),
+    GroupsModule,
+    ProfilesModule,
+    CoursesModule,
+    AdminModule,
+    AttendanceModule,
+    TeachersModule,
+    AdminModule,
+    LessonsModule,
+    SuperAdminModule
   ],
   controllers: [AuthController],
   providers: [AuthService, TeachersService, StudentsService],
