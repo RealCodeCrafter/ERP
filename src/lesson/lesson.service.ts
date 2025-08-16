@@ -238,8 +238,6 @@ async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<an
 
   // Natijani kerakli formatda shakllantirish
   return {
-    title: "O'quvchilar Davomati",
-    description: "O'quvchilarning kunlik davomat holatini kuzatib boring",
     statistics: {
       totalStudents: totalStudents,
       present: presentCount,
