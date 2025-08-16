@@ -70,25 +70,31 @@ export class GroupsService {
   }
 
   /** 🔹 Student qo‘shish */
-  async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
-    const group = await this.getGroupById(groupId);
+async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
+  const group = await this.groupRepository.findOne({
+    where: { id: groupId },
+    relations: ['students'],
+  });
+  if (!group) throw new NotFoundException('Group not found');
 
-    const student = await this.studentRepository.findOne({ where: { id: studentId } });
-    if (!student) throw new NotFoundException('Student not found');
+  const student = await this.studentRepository.findOne({ where: { id: studentId } });
+  if (!student) throw new NotFoundException('Student not found');
 
-    if (group.students.some(s => s.id === studentId)) {
-      throw new BadRequestException('Student already in group');
-    }
-
-    group.students.push(student);
-
-    // 🔑 15 ta bo‘lsa avtomatik active
-    if (group.students.length >= 15) {
-      group.status = 'active';
-    }
-
-    return this.groupRepository.save(group);
+  // ❌ Agar student allaqachon guruhda bo‘lsa
+  if (group.students.some(s => s.id === studentId)) {
+    throw new BadRequestException('Student already in group');
   }
+
+  group.students.push(student);
+
+  // 🔑 Avtomatik active agar 15 ta bo‘lsa
+  if (group.students.length >= 15) {
+    group.status = 'active';
+  }
+
+  return this.groupRepository.save(group);
+}
+
 
   /** 🔹 Student chiqarib yuborish */
   async removeStudentFromGroup(groupId: number, studentId: number): Promise<Group> {

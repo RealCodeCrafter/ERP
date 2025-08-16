@@ -26,6 +26,7 @@ export class GroupsController {
     return this.groupsService.getGroupsByTeacherId(teacherId);
   }
 
+  // 🔹 Guruhga student qo‘shish
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Post(':id/add-student')
