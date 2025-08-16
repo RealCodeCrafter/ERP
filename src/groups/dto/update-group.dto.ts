@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsArray, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsIn,
+  IsEnum,
+  IsNumber,
+} from 'class-validator';
 
 export class UpdateGroupDto {
   @IsOptional()
@@ -16,6 +23,37 @@ export class UpdateGroupDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @IsIn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], { each: true, message: 'Each day must be a valid day of the week' })
+  @IsIn(
+    [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ],
+    {
+      each: true,
+      message: 'Each day must be a valid day of the week',
+    },
+  )
   daysOfWeek?: string[];
+
+  @IsOptional()
+  @IsEnum(['active', 'frozen', 'completed'])
+  status?: 'active' | 'frozen' | 'completed';
+
+  @IsOptional()
+  @IsNumber()
+  courseId?: number;
+
+  @IsOptional()
+  @IsNumber()
+  teacherId?: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsNumber({}, { each: true })
+  studentIds?: number[];
 }

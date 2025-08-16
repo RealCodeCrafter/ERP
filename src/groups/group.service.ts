@@ -231,10 +231,33 @@ export class GroupsService {
 
   async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
     const group = await this.getGroupById(id);
+
     if (updateGroupDto.name) group.name = updateGroupDto.name;
     if (updateGroupDto.startTime) group.startTime = updateGroupDto.startTime;
     if (updateGroupDto.endTime) group.endTime = updateGroupDto.endTime;
     if (updateGroupDto.daysOfWeek) group.daysOfWeek = updateGroupDto.daysOfWeek;
+    if (updateGroupDto.status) group.status = updateGroupDto.status;
+
+    if (updateGroupDto.courseId) {
+      const course = await this.courseRepository.findOne({ where: { id: updateGroupDto.courseId } });
+      if (!course) throw new NotFoundException('Course not found');
+      group.course = course;
+    }
+
+    if (updateGroupDto.teacherId) {
+      const teacher = await this.teacherRepository.findOne({ where: { id: updateGroupDto.teacherId } });
+      if (!teacher) throw new NotFoundException('Teacher not found');
+      group.teacher = teacher;
+    }
+
+    if (updateGroupDto.studentIds && updateGroupDto.studentIds.length > 0) {
+      const students = await this.studentRepository.findByIds(updateGroupDto.studentIds);
+      if (students.length !== updateGroupDto.studentIds.length) {
+        throw new NotFoundException('One or more students not found');
+      }
+      group.students = students;
+    }
+
     return this.groupRepository.save(group);
   }
 

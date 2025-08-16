@@ -50,7 +50,7 @@ export class GroupsController {
     return this.groupsService.searchGroups(name, teacherName);
   }
 
-  @Roles('admin')
+   @Roles('admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Put(':id')
   updateGroup(@Param('id') id: string, @Body() updateGroupDto: UpdateGroupDto) {
