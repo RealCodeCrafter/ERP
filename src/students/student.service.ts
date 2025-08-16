@@ -138,66 +138,71 @@ export class StudentsService {
   }
 
   async createStudent(createStudentDto: CreateStudentDto): Promise<Student> {
-    const { phone, username, password, groupId, firstName, lastName, address, parentsName, parentPhone } = createStudentDto;
+  const { phone, username, password, groupId, firstName, lastName, address, parentsName, parentPhone } = createStudentDto;
 
-    const existingStudent = await this.studentRepository.findOne({ where: { phone } });
-    if (existingStudent) {
-      throw new ConflictException(`Student with phone ${phone} already exists`);
-    }
-
-    if (username) {
-      const existingUsername = await this.studentRepository.findOne({ where: { username } });
-      if (existingUsername) {
-        throw new ConflictException(`Username ${username} already exists`);
-      }
-    }
-
-    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
-
-    const group = await this.groupRepository.findOne({ where: { id: groupId }, relations: ['course', 'students'] });
-    if (!group) {
-      throw new NotFoundException(`Group with ID ${groupId} not found`);
-    }
-
-    const profile = this.profileRepository.create({
-      firstName,
-      lastName,
-      username,
-      password: hashedPassword,
-      address,
-      phone,
-      parentsName,
-      parentPhone,
-    });
-
-    const savedProfile = await this.profileRepository.save(profile);
-
-    const student = this.studentRepository.create({
-      firstName,
-      lastName,
-      phone,
-      address,
-      username,
-      password: hashedPassword,
-      parentsName,
-      parentPhone,
-      groups: [group],
-      role: 'student',
-      profile: savedProfile,
-    });
-
-    const savedStudent = await this.studentRepository.save(student);
-
-    // Guruhga student qo'shilganda statusni yangilash
-    if (group.students.length + 1 >= 15) {
-      group.status = 'active';
-    } else if (group.students.length + 1 > 0) {
-      group.status = 'planned';
-    }
-    await this.groupRepository.save(group);
-
-    return savedStudent;
+  const existingStudent = await this.studentRepository.findOne({ where: { phone } });
+  if (existingStudent) {
+    throw new ConflictException(`Student with phone ${phone} already exists`);
   }
+
+  if (username) {
+    const existingUsername = await this.studentRepository.findOne({ where: { username } });
+    if (existingUsername) {
+      throw new ConflictException(`Username ${username} already exists`);
+    }
+  }
+
+  const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
+  const group = await this.groupRepository.findOne({ 
+    where: { id: groupId }, 
+    relations: ['course', 'students'] 
+  });
+  if (!group) {
+    throw new NotFoundException(`Group with ID ${groupId} not found`);
+  }
+
+  const profile = this.profileRepository.create({
+    firstName,
+    lastName,
+    username,
+    password: hashedPassword,
+    address,
+    phone,
+    parentsName,
+    parentPhone,
+  });
+  const savedProfile = await this.profileRepository.save(profile);
+
+  const student = this.studentRepository.create({
+    firstName,
+    lastName,
+    phone,
+    address,
+    username,
+    password: hashedPassword,
+    parentsName,
+    parentPhone,
+    groups: [group],
+    role: 'student',
+    profile: savedProfile,
+  });
+  const savedStudent = await this.studentRepository.save(student);
+
+  group.students = group.students ? [...group.students, savedStudent] : [savedStudent];
+
+  if (group.students.length >= 15) {
+    group.status = 'active';
+  } else if (group.students.length > 0) {
+    group.status = 'planned';
+  }
+  await this.groupRepository.save(group);
+
+  return this.studentRepository.findOne({ 
+    where: { id: savedStudent.id }, 
+    relations: ['groups', 'groups.course', 'profile'] 
+  });
+}
 
   async updateStudent(id: number, updateStudentDto: UpdateStudentDto): Promise<Student> {
     const student = await this.getStudentById(id);
