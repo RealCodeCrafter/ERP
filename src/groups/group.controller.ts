@@ -14,13 +14,6 @@ export class GroupsController {
   create(@Body() createGroupDto: CreateGroupDto) {
     return this.groupsService.createGroup(createGroupDto);
   }
-  @Roles('admin', 'teacher', 'student', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get()
-  getAllGroupsForAdmin() {
-    return this.groupsService.getAllGroupsForAdmin();
-  }
-
   
   @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)
@@ -31,6 +24,14 @@ export class GroupsController {
       throw new NotFoundException('Teacher not found in token');
     }
     return this.groupsService.getGroupsByTeacherId(teacherId);
+  }
+
+  
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Post(':id/add-student')
+  addStudentToGroup(@Param('id') id: string, @Query('studentId') studentId: string) {
+    return this.groupsService.addStudentToGroup(+id, +studentId);
   }
 
 
@@ -55,20 +56,6 @@ export class GroupsController {
     return this.groupsService.searchGroups(name, teacherName);
   }
 
-   @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Put(':id')
-  updateGroup(@Param('id') id: string, @Body() updateGroupDto: UpdateGroupDto) {
-    return this.groupsService.updateGroup(+id, updateGroupDto);
-  }
-
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Delete(':id')
-  deleteGroup(@Param('id') id: string) {
-    return this.groupsService.deleteGroup(+id);
-  }
-
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('course/:courseId')
@@ -81,13 +68,6 @@ export class GroupsController {
   @Get(':id/students/list')
   getStudentsByGroupId(@Param('id') id: string) {
     return this.groupsService.getStudentsByGroupId(+id);
-  }
-
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Post(':id/add-student')
-  addStudentToGroup(@Param('id') id: string, @Query('studentId') studentId: string) {
-    return this.groupsService.addStudentToGroup(+id, +studentId);
   }
 
   @Roles('admin', 'superAdmin')
@@ -123,10 +103,33 @@ export class GroupsController {
     return this.groupsService.restoreStudentToGroup(+id, +studentId);
   }
 
+  
+  @Roles('admin', 'teacher', 'student', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get()
+  getAllGroupsForAdmin() {
+    return this.groupsService.getAllGroupsForAdmin();
+  }
+
+   @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Put(':id')
+  updateGroup(@Param('id') id: string, @Body() updateGroupDto: UpdateGroupDto) {
+    return this.groupsService.updateGroup(+id, updateGroupDto);
+  }
+
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Delete(':id')
+  deleteGroup(@Param('id') id: string) {
+    return this.groupsService.deleteGroup(+id);
+  }
+
    @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get(':id')
   async getGroupById(@Param('id') id: string) {
     return this.groupsService.getGroupById(+id);
   }
+
 }
