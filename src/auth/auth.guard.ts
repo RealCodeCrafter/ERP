@@ -29,13 +29,7 @@ export class AuthGuard implements CanActivate {
       request.user = payload;
       return true;
     } catch (error) {
-      if (error.name === 'TokenExpiredError') {
-        throw new UnauthorizedException('Token muddati tugagan');
-      }
-      if (error.name === 'JsonWebTokenError') {
-        throw new UnauthorizedException('Token noto‘g‘ri');
-      }
-      throw new UnauthorizedException('Token tekshirish xatosi');
+      throw new UnauthorizedException('Token noto‘g‘ri');
     }
   }
 }
