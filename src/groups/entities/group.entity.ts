@@ -14,25 +14,25 @@ export class Group {
   @Column({ type: 'varchar', length: 100 })
   name: string;
 
-  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm formati, masalan "09:00"
+  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm format, e.g. "09:00"
   startTime: string;
 
-  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm formati, masalan "11:00"
+  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm format, e.g. "11:00"
   endTime: string;
 
-  @Column({ type: 'varchar', array: true, nullable: true }) // Haftaning kunlari, masalan ["Monday", "Wednesday", "Saturday"]
+  @Column({ type: 'varchar', array: true, nullable: true }) // e.g. ["Monday", "Wednesday"]
   daysOfWeek: string[];
 
-  @Column({ type: 'enum', enum: ['active', 'frozen', 'completed'], default: 'active' })
-  status: 'active' | 'frozen' | 'completed';
+  @Column({ type: 'enum', enum: ['planned', 'active', 'frozen', 'completed'], default: 'planned' })
+  status: 'planned' | 'active' | 'frozen' | 'completed';
 
   @ManyToOne(() => Course, (course) => course.groups, { onDelete: 'CASCADE' })
   course: Course;
 
-  @ManyToOne(() => Teacher, (teacher) => teacher.groups, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Teacher, (teacher) => teacher.groups, { onDelete: 'SET NULL', nullable: true })
   teacher: Teacher;
 
-  @ManyToMany(() => Student, (student) => student.groups)
+  @ManyToMany(() => Student, (student) => student.groups, { cascade: true })
   @JoinTable()
   students: Student[];
 

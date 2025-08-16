@@ -27,6 +27,9 @@ export class CreateGroupDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @IsIn(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], { each: true, message: 'Each day must be a valid day of the week' })
+  @IsIn(
+    ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+    { each: true, message: 'Each day must be a valid day of the week' },
+  )
   daysOfWeek?: string[];
 }

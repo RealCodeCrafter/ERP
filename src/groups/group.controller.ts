@@ -8,13 +8,13 @@ import { AuthGuard, Roles, RolesGuard } from '../auth/auth.guard';
 export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
-  @Roles('admin',  'superAdmin')
+   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Post()
   create(@Body() createGroupDto: CreateGroupDto) {
     return this.groupsService.createGroup(createGroupDto);
   }
-
+  
   @Roles('admin', 'teacher', 'student')
   @UseGuards(AuthGuard, RolesGuard)
   @Get()

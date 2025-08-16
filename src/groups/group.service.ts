@@ -24,7 +24,8 @@ export class GroupsService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
-  async createGroup(createGroupDto: CreateGroupDto): Promise<Group> {
+
+   async createGroup(createGroupDto: CreateGroupDto): Promise<Group> {
     const { name, courseId, teacherId, students, startTime, endTime, daysOfWeek } = createGroupDto;
 
     const course = await this.courseRepository.findOne({ where: { id: courseId } });
@@ -48,12 +49,18 @@ export class GroupsService {
       throw new BadRequestException('Group with the same name already exists for this course');
     }
 
+    // 🔑 Boshlang‘ich holati planned
+    let status: 'planned' | 'active' | 'frozen' | 'completed' = 'planned';
+    if (studentEntities.length >= 15) {
+      status = 'active';
+    }
+
     const group = this.groupRepository.create({
       name,
       course,
       teacher,
       students: studentEntities,
-      status: 'active',
+      status,
       startTime,
       endTime,
       daysOfWeek,
@@ -62,6 +69,7 @@ export class GroupsService {
     return this.groupRepository.save(group);
   }
 
+  /** 🔹 Student qo‘shish */
   async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     const group = await this.getGroupById(groupId);
 
@@ -73,10 +81,16 @@ export class GroupsService {
     }
 
     group.students.push(student);
-    group.status = 'active';
+
+    // 🔑 15 ta bo‘lsa avtomatik active
+    if (group.students.length >= 15) {
+      group.status = 'active';
+    }
+
     return this.groupRepository.save(group);
   }
 
+  /** 🔹 Student chiqarib yuborish */
   async removeStudentFromGroup(groupId: number, studentId: number): Promise<Group> {
     const group = await this.getGroupById(groupId);
 
@@ -84,15 +98,18 @@ export class GroupsService {
     if (!inGroup) throw new NotFoundException('Student not found in group');
 
     group.students = group.students.filter(s => s.id !== studentId);
+
+    // 🔑 Holatlarni avtomatik o‘zgartirish
     if (group.students.length === 0) {
       group.status = 'completed';
-    } else {
+    } else if (group.students.length < 15) {
       group.status = 'frozen';
     }
 
     return this.groupRepository.save(group);
   }
 
+  /** 🔹 Studentni qayta tiklash */
   async restoreStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     const group = await this.getGroupById(groupId);
 
@@ -112,10 +129,59 @@ export class GroupsService {
     }
 
     group.students.push(student);
-    group.status = 'active';
+
+    // 🔑 Tiklanganda ham tekshiramiz
+    if (group.students.length >= 15) {
+      group.status = 'active';
+    }
+
     return this.groupRepository.save(group);
   }
 
+  async transferStudentToGroup(fromGroupId: number, toGroupId: number, studentId: number): Promise<Group> {
+    if (fromGroupId === toGroupId) {
+      throw new BadRequestException('Source and target groups are the same');
+    }
+
+    const fromGroup = await this.getGroupById(fromGroupId);
+    const toGroup = await this.getGroupById(toGroupId);
+
+    const student = await this.studentRepository.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Student not found');
+
+    if (!fromGroup.students.some(s => s.id === studentId)) {
+      throw new BadRequestException('Student not found in source group');
+    }
+    if (toGroup.students.some(s => s.id === studentId)) {
+      throw new BadRequestException('Student already in target group');
+    }
+    
+    fromGroup.students = fromGroup.students.filter(s => s.id !== studentId);
+    if (fromGroup.students.length === 0) {
+      fromGroup.status = 'completed';
+    } else if (fromGroup.students.length < 15) {
+      fromGroup.status = 'frozen';
+    }
+    await this.groupRepository.save(fromGroup);
+
+    // 🔑 Yangi guruhga qo‘shamiz
+    toGroup.students.push(student);
+    if (toGroup.students.length >= 15) {
+      toGroup.status = 'active';
+    }
+
+    return this.groupRepository.save(toGroup);
+  }
+
+  /** 🔹 Bitta guruhni olish */
+  async getGroupById(id: number): Promise<Group> {
+    const group = await this.groupRepository.findOne({
+      where: { id },
+      relations: ['course', 'teacher', 'students'],
+    });
+    if (!group) throw new NotFoundException('Group not found');
+    return group;
+  }
   async getFrozenStudents(): Promise<Student[]> {
     const groups = await this.groupRepository.find({
       where: { status: 'frozen' },
@@ -138,45 +204,6 @@ export class GroupsService {
 
     return frozenStudents.map(item => item.student);
   }
-
-  async transferStudentToGroup(fromGroupId: number, toGroupId: number, studentId: number): Promise<Group> {
-    if (fromGroupId === toGroupId) {
-      throw new BadRequestException('Source and target groups are the same');
-    }
-
-    const fromGroup = await this.getGroupById(fromGroupId);
-    const toGroup = await this.getGroupById(toGroupId);
-
-    const student = await this.studentRepository.findOne({ where: { id: studentId } });
-    if (!student) throw new NotFoundException('Student not found');
-
-    if (!fromGroup.students.some(s => s.id === studentId)) {
-      throw new BadRequestException('Student not found in source group');
-    }
-    if (toGroup.students.some(s => s.id === studentId)) {
-      throw new BadRequestException('Student already in target group');
-    }
-
-    fromGroup.students = fromGroup.students.filter(s => s.id !== studentId);
-    if (fromGroup.students.length === 0) {
-      fromGroup.status = 'completed';
-    }
-    await this.groupRepository.save(fromGroup);
-
-    toGroup.students.push(student);
-    toGroup.status = 'active';
-    return this.groupRepository.save(toGroup);
-  }
-
-  async getGroupById(id: number): Promise<Group> {
-    const group = await this.groupRepository.findOne({
-      where: { id },
-      relations: ['course', 'teacher', 'students'],
-    });
-    if (!group) throw new NotFoundException('Group not found');
-    return group;
-  }
-
     async getGroupsByTeacherId(teacherId: number): Promise<Group[]> {
     const teacher = await this.teacherRepository.findOne({
       where: { id: teacherId },

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Student } from './entities/student.entity';
@@ -8,8 +8,8 @@ import { Group } from '../groups/entities/group.entity';
 import { Profile } from '../profile/entities/profile.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { Payment } from '../payment/entities/payment.entity';
+import { Lesson } from '../lesson/entities/lesson.entity';
 import * as bcrypt from 'bcrypt';
-import { Lesson } from 'src/lesson/entities/lesson.entity';
 
 @Injectable()
 export class StudentsService {
@@ -142,13 +142,13 @@ export class StudentsService {
 
     const existingStudent = await this.studentRepository.findOne({ where: { phone } });
     if (existingStudent) {
-      throw new NotFoundException(`Student with phone ${phone} already exists`);
+      throw new ConflictException(`Student with phone ${phone} already exists`);
     }
 
     if (username) {
       const existingUsername = await this.studentRepository.findOne({ where: { username } });
       if (existingUsername) {
-        throw new NotFoundException(`Username ${username} already exists`);
+        throw new ConflictException(`Username ${username} already exists`);
       }
     }
 
@@ -208,14 +208,14 @@ export class StudentsService {
     if (username) {
       const existingUsername = await this.studentRepository.findOne({ where: { username } });
       if (existingUsername && existingUsername.id !== id) {
-        throw new NotFoundException(`Username ${username} already exists`);
+        throw new ConflictException(`Username ${username} already exists`);
       }
     }
 
     if (phone) {
       const existingStudent = await this.studentRepository.findOne({ where: { phone } });
       if (existingStudent && existingStudent.id !== id) {
-        throw new NotFoundException(`Student with phone ${phone} already exists`);
+        throw new ConflictException(`Student with phone ${phone} already exists`);
       }
     }
 
@@ -281,103 +281,109 @@ export class StudentsService {
       .sort((a, b) => b.presentCount - a.presentCount);
   }
 
-
   async getStudentProfile(id: number): Promise<any> {
-  const student = await this.studentRepository.findOne({
-    where: { id },
-    relations: ['groups', 'groups.course', 'groups.teacher'],
-  });
-  if (!student) {
-    throw new NotFoundException(`Student with ID ${id} not found`);
-  }
+    const student = await this.studentRepository.findOne({
+      where: { id },
+      relations: ['groups', 'groups.course', 'groups.teacher'],
+    });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${id} not found`);
+    }
 
-  // O'zbekcha kun nomlari uchun mapping
-  const dayTranslations: { [key: string]: string } = {
-    Monday: 'Dushanba',
-    Tuesday: 'Seshanba',
-    Wednesday: 'Chorshanba',
-    Thursday: 'Payshanba',
-    Friday: 'Juma',
-    Saturday: 'Shanba',
-    Sunday: 'Yakshanba',
-  };
+    // O'zbekcha kun nomlari uchun mapping
+    const dayTranslations: { [key: string]: string } = {
+      Monday: 'Dushanba',
+      Tuesday: 'Seshanba',
+      Wednesday: 'Chorshanba',
+      Thursday: 'Payshanba',
+      Friday: 'Juma',
+      Saturday: 'Shanba',
+      Sunday: 'Yakshanba',
+    };
 
-  // Guruhlar ma'lumotlarini formatlash
-  const groups = await Promise.all(
-    student.groups.map(async (group) => {
-      const firstLesson = await this.lessonRepository.findOne({
-        where: { group: { id: group.id } },
-        order: { lessonDate: 'ASC' },
-      });
-
-      const payments = await this.paymentRepository.find({
-        where: { student: { id }, group: { id: group.id } },
-        order: { createdAt: 'ASC' },
-      });
-
-      const totalPaid = payments
-        .filter(payment => payment.paid)
-        .reduce((sum, payment) => sum + payment.amount, 0);
-
-      let nextPaymentDate = null;
-      if (firstLesson) {
-        const daysSinceFirstLesson = Math.floor(
-          (new Date().getTime() - firstLesson.lessonDate.getTime()) / (1000 * 60 * 60 * 24),
-        );
-        const cycleNumber = Math.floor(daysSinceFirstLesson / 30) + 1;
-        const nextPayment = new Date(firstLesson.lessonDate);
-        nextPayment.setDate(nextPayment.getDate() + cycleNumber * 30);
-        nextPaymentDate = nextPayment.toLocaleDateString('uz-UZ', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
+    // Guruhlar ma'lumotlarini formatlash
+    const groups = await Promise.all(
+      student.groups.map(async (group) => {
+        const firstLesson = await this.lessonRepository.findOne({
+          where: { group: { id: group.id } },
+          order: { lessonDate: 'ASC' },
         });
-      }
 
-      const paymentHistory = payments.map((payment, index) => ({
-        date: payment.createdAt.toLocaleDateString('uz-UZ', {
-          day: '2-digit',
-          month: 'long',
-          year: 'numeric',
-        }),
-        amount: `${payment.amount.toLocaleString('uz-UZ')} so'm`,
-        status: payment.paid ? 'To‘langan' : 'Kechikkan',
-        note: `${index + 1}-oy`,
-      }));
+        // Faqat to'langan to'lovlarni olish
+        const payments = await this.paymentRepository.find({
+          where: { student: { id }, group: { id: group.id }, paid: true },
+          order: { createdAt: 'ASC' },
+        });
 
-      const hasSchedule = group.daysOfWeek?.length && group.startTime && group.endTime;
+        const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
 
-      return {
-        course: group.course?.name || 'N/A',
-        group: group.name,
-        teacher: group.teacher ? `${group.teacher.firstName} ${group.teacher.lastName}` : 'N/A',
-        startDate: firstLesson
-          ? firstLesson.lessonDate.toLocaleDateString('uz-UZ', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-            })
-          : 'N/A',
-        schedule: hasSchedule
-          ? `${group.daysOfWeek.map(day => dayTranslations[day]).join(', ')} - ${group.startTime}-${group.endTime}`
-          : '',
-        totalPaid: `${totalPaid.toLocaleString('uz-UZ')} so'm`,
-        nextPaymentDate,
-        payments: paymentHistory,
-      };
-    }),
-  );
+        let nextPaymentDate = null;
+        const currentDate = new Date();
+        if (firstLesson) {
+          const daysSinceFirstLesson = Math.floor(
+            (currentDate.getTime() - firstLesson.lessonDate.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          const cycleNumber = Math.floor(daysSinceFirstLesson / 30);
+          const isFirstCycle = cycleNumber === 0;
 
-  return {
-    id: student.id,
-    firstName: student.firstName,
-    lastName: student.lastName,
-    phone: student.phone,
-    address: student.address,
-    parentsPhone: student.parentPhone,
-    parentsName: student.parentsName,
-    education: groups.length > 0 ? groups : [],
-  };
-}
+          // Birinchi tsikl bo'lsa yoki keyingi tsikl uchun to'lov muddati
+          const paymentDueDate = new Date(firstLesson.lessonDate);
+          paymentDueDate.setDate(paymentDueDate.getDate() + (cycleNumber + 1) * 30);
+          nextPaymentDate = paymentDueDate.toLocaleDateString('uz-UZ', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          });
 
+          // Birinchi tsiklda to'lov bo'lmasa, payments bo'sh bo'ladi
+          if (isFirstCycle && payments.length === 0) {
+            payments.splice(0, payments.length); // Bo'shatish
+          }
+        }
+
+        const paymentHistory = payments.map((payment, index) => ({
+          date: payment.createdAt.toLocaleDateString('uz-UZ', {
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          }),
+          amount: `${payment.amount.toLocaleString('uz-UZ')} so'm`,
+          status: 'To‘langan', // Faqat paid: true to'lovlar olinadi
+          note: `${index + 1}-oy`,
+        }));
+
+        const hasSchedule = group.daysOfWeek?.length && group.startTime && group.endTime;
+
+        return {
+          course: group.course?.name || 'N/A',
+          group: group.name,
+          teacher: group.teacher ? `${group.teacher.firstName} ${group.teacher.lastName}` : 'N/A',
+          startDate: firstLesson
+            ? firstLesson.lessonDate.toLocaleDateString('uz-UZ', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+              })
+            : 'N/A',
+          schedule: hasSchedule
+            ? `${group.daysOfWeek.map(day => dayTranslations[day]).join(', ')} - ${group.startTime}-${group.endTime}`
+            : '',
+          totalPaid: `${totalPaid.toLocaleString('uz-UZ')} so'm`,
+          nextPaymentDate: nextPaymentDate || 'N/A',
+          payments: paymentHistory,
+        };
+      }),
+    );
+
+    return {
+      id: student.id,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      phone: student.phone,
+      address: student.address,
+      parentsPhone: student.parentPhone,
+      parentsName: student.parentsName,
+      education: groups.length > 0 ? groups : [],
+    };
+  }
 }

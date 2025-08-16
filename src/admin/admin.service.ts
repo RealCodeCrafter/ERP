@@ -38,50 +38,48 @@ export class AdminService {
     }
     return admins;
   }
-
-  async create(createAdminDto: CreateAdminDto): Promise<Admin> {
-    const existingAdmin = await this.adminRepository.findOne({
-      where: { username: createAdminDto.username },
-    });
-
-    if (existingAdmin) {
-      throw new ConflictException(`Username ${createAdminDto.username} already exists`);
-    }
-
-    const existingPhone = await this.adminRepository.findOne({
-      where: { phone: createAdminDto.phone },
-    });
-
-    if (existingPhone) {
-      throw new ConflictException(`Phone ${createAdminDto.phone} already exists`);
-    }
-
-    const hashedPassword = await bcrypt.hash(createAdminDto.password, 10);
-
-    const profile = this.profileRepository.create({
-      username: createAdminDto.username,
-      password: hashedPassword,
-      firstName: createAdminDto.firstName,
-      lastName: createAdminDto.lastName,
-      phone: createAdminDto.phone,
-      address: createAdminDto.address,
-    });
-
-    await this.profileRepository.save(profile);
-
-    const admin = this.adminRepository.create({
-      username: createAdminDto.username,
-      password: hashedPassword,
-      firstName: createAdminDto.firstName,
-      lastName: createAdminDto.lastName,
-      phone: createAdminDto.phone,
-      address: createAdminDto.address,
-      role: 'admin',
-      profile,
-    });
-
-    return this.adminRepository.save(admin);
+async create(createAdminDto: CreateAdminDto): Promise<Admin> {
+  const existingAdmin = await this.adminRepository.findOne({
+    where: { username: createAdminDto.username },
+  });
+  if (existingAdmin) {
+    throw new ConflictException(`Username ${createAdminDto.username} already exists`);
   }
+
+  const existingPhone = await this.adminRepository.findOne({
+    where: { phone: createAdminDto.phone },
+  });
+  if (existingPhone) {
+    throw new ConflictException(`Phone ${createAdminDto.phone} already exists`);
+  }
+
+  const hashedPassword = await bcrypt.hash(createAdminDto.password, 10);
+
+  const profile = this.profileRepository.create({
+    username: createAdminDto.username,
+    password: hashedPassword,
+    firstName: createAdminDto.firstName,
+    lastName: createAdminDto.lastName,
+    phone: createAdminDto.phone,
+    address: createAdminDto.address,
+  });
+
+  await this.profileRepository.save(profile);
+
+  const admin = this.adminRepository.create({
+    username: createAdminDto.username,
+    password: hashedPassword,
+    firstName: createAdminDto.firstName,
+    lastName: createAdminDto.lastName,
+    phone: createAdminDto.phone,
+    address: createAdminDto.address,
+    role: 'admin',
+    profile,
+  });
+
+  return this.adminRepository.save(admin);
+}
+
 
   async update(id: number, updateAdminDto: UpdateAdminDto): Promise<Admin> {
     const admin = await this.adminRepository.findOne({
