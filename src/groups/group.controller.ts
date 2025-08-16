@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Put } from '@nestjs/common';
 import { GroupsService } from './group.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
@@ -52,7 +52,7 @@ export class GroupsController {
 
   @Roles('admin')
   @UseGuards(AuthGuard, RolesGuard)
-  @Patch(':id')
+  @Put(':id')
   updateGroup(@Param('id') id: string, @Body() updateGroupDto: UpdateGroupDto) {
     return this.groupsService.updateGroup(+id, updateGroupDto);
   }
