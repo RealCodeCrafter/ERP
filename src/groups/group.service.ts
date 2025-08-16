@@ -97,27 +97,6 @@ export class GroupsService {
     return this.groupRepository.save(group);
   }
 
-  /** 🔹 Student chiqarib yuborish */
-  async removeStudentFromGroup(groupId: number, studentId: number): Promise<Group> {
-    const group = await this.getGroupById(groupId);
-
-    const inGroup = group.students.find(s => s.id === studentId);
-    if (!inGroup) throw new NotFoundException('Student not found in group');
-
-    group.students = group.students.filter(s => s.id !== studentId);
-
-    // 🔑 Holatlarni avtomatik o‘zgartirish
-    if (group.students.length === 0) {
-      group.status = 'completed';
-    } else if (group.students.length < 15) {
-      group.status = 'planned';
-    } else {
-      group.status = 'active';
-    }
-
-    return this.groupRepository.save(group);
-  }
-
   /** 🔹 Studentni qayta tiklash */
   async restoreStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     const group = await this.getGroupById(groupId);
@@ -277,7 +256,27 @@ export class GroupsService {
     return qb.getMany();
   }
 
-  
+   /** 🔹 Student chiqarib yuborish */
+  async removeStudentFromGroup(groupId: number, studentId: number): Promise<Group> {
+    const group = await this.getGroupById(groupId);
+
+    const inGroup = group.students.find(s => s.id === studentId);
+    if (!inGroup) throw new NotFoundException('Student not found in group');
+
+    group.students = group.students.filter(s => s.id !== studentId);
+
+    // 🔑 Holatlarni avtomatik o‘zgartirish
+    if (group.students.length === 0) {
+      group.status = 'completed';
+    } else if (group.students.length < 15) {
+      group.status = 'planned';
+    } else {
+      group.status = 'active';
+    }
+
+    return this.groupRepository.save(group);
+  }
+
    async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
     const group = await this.getGroupById(id);
 

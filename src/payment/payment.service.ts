@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, Between } from 'typeorm';
 import { Payment } from './entities/payment.entity';
@@ -38,7 +38,7 @@ export class PaymentService {
   ) {}
 
   async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
-    const { studentId, groupId, courseId, amount } = createPaymentDto;
+    const { studentId, groupId, courseId, amount, monthFor } = createPaymentDto;
 
     const student = await this.studentRepository.findOne({ where: { id: studentId } });
     if (!student) {
@@ -55,6 +55,11 @@ export class PaymentService {
       throw new NotFoundException(`Course with ID ${courseId} not found`);
     }
 
+    // monthFor formatini tekshirish (YYYY-MM)
+    if (!monthFor || !/^\d{4}-\d{2}$/.test(monthFor)) {
+      throw new BadRequestException('monthFor must be in YYYY-MM format');
+    }
+
     // To'lov guruhning narxiga mos kelishini tekshirish
     const paid = amount >= group.price;
 
@@ -66,15 +71,10 @@ export class PaymentService {
       adminStatus: 'accepted',
       teacherStatus: null,
       paid,
+      monthFor,
     });
 
-    const savedPayment = await this.paymentRepository.save(payment);
-
-    if (paid && !group.students.some(s => s.id === studentId)) {
-      await this.groupsService.restoreStudentToGroup(groupId, studentId);
-    }
-
-    return savedPayment;
+    return this.paymentRepository.save(payment);
   }
 
   async findAll(): Promise<Payment[]> {
@@ -108,19 +108,7 @@ export class PaymentService {
     // To'lov guruhning narxiga mos kelishini tekshirish
     payment.paid = payment.adminStatus === 'accepted' && payment.teacherStatus === 'accepted' && payment.amount >= group.price;
 
-    const savedPayment = await this.paymentRepository.save(payment);
-
-    if (payment.paid && !group.students.some(s => s.id === payment.student.id)) {
-      await this.groupsService.restoreStudentToGroup(payment.group.id, payment.student.id);
-      if (payment.student.parentPhone) {
-        await this.sendSMS(
-          payment.student.parentPhone,
-          `Hurmatli ${payment.student.parentsName}, ${payment.group.name} guruhi uchun to'lov tasdiqlandi. O'quvchi guruhga qayta qo'shildi.`,
-        );
-      }
-    }
-
-    return savedPayment;
+    return this.paymentRepository.save(payment);
   }
 
   async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
@@ -151,23 +139,17 @@ export class PaymentService {
     if (updatePaymentDto.amount !== undefined) {
       payment.amount = updatePaymentDto.amount;
     }
+    if (updatePaymentDto.monthFor) {
+      if (!/^\d{4}-\d{2}$/.test(updatePaymentDto.monthFor)) {
+        throw new BadRequestException('monthFor must be in YYYY-MM format');
+      }
+      payment.monthFor = updatePaymentDto.monthFor;
+    }
 
     // To'lov guruhning narxiga mos kelishini tekshirish
     payment.paid = payment.adminStatus === 'accepted' && payment.teacherStatus === 'accepted' && payment.amount >= group.price;
 
-    const savedPayment = await this.paymentRepository.save(payment);
-
-    if (payment.paid && !group.students.some(s => s.id === payment.student.id)) {
-      await this.groupsService.restoreStudentToGroup(payment.group.id, payment.student.id);
-      if (payment.student.parentPhone) {
-        await this.sendSMS(
-          payment.student.parentPhone,
-          `Hurmatli ${payment.student.parentsName}, ${payment.group.name} guruhi uchun to'lov tasdiqlandi. O'quvchi guruhga qayta qo'shildi.`,
-        );
-      }
-    }
-
-    return savedPayment;
+    return this.paymentRepository.save(payment);
   }
 
   async remove(id: number): Promise<void> {
@@ -175,7 +157,7 @@ export class PaymentService {
     await this.paymentRepository.remove(payment);
   }
 
-  async searchPayments(studentName: string, groupId: number, status: string): Promise<Payment[]> {
+  async searchPayments(studentName: string, groupId: number, status: string, monthFor: string): Promise<Payment[]> {
     const query: any = {};
     if (studentName) {
       query.student = [
@@ -189,13 +171,16 @@ export class PaymentService {
     if (status) {
       query.adminStatus = status;
     }
+    if (monthFor) {
+      query.monthFor = monthFor;
+    }
     return this.paymentRepository.find({
       where: query,
       relations: ['student', 'group', 'group.teacher', 'course'],
     });
   }
 
-  async findPaidPayments(studentName: string, groupId: number): Promise<Payment[]> {
+  async findPaidPayments(studentName: string, groupId: number, monthFor: string): Promise<Payment[]> {
     const query: any = { paid: true };
     if (studentName) {
       query.student = [
@@ -206,13 +191,16 @@ export class PaymentService {
     if (groupId) {
       query.group = { id: groupId };
     }
+    if (monthFor) {
+      query.monthFor = monthFor;
+    }
     return this.paymentRepository.find({
       where: query,
       relations: ['student', 'group', 'course'],
     });
   }
 
-  async findUnpaidPayments(studentName: string, groupId: number): Promise<Payment[]> {
+  async findUnpaidPayments(studentName: string, groupId: number, monthFor: string): Promise<Payment[]> {
     const query: any = { paid: false };
     if (studentName) {
       query.student = [
@@ -223,10 +211,61 @@ export class PaymentService {
     if (groupId) {
       query.group = { id: groupId };
     }
+    if (monthFor) {
+      query.monthFor = monthFor;
+    }
     return this.paymentRepository.find({
       where: query,
       relations: ['student', 'group', 'course'],
     });
+  }
+
+  async getUnpaidMonths(studentId: number, groupId: number): Promise<string[]> {
+    const group = await this.groupRepository.findOne({
+      where: { id: groupId },
+      relations: ['students'],
+    });
+    if (!group) {
+      throw new NotFoundException(`Group with ID ${groupId} not found`);
+    }
+
+    const student = group.students.find(s => s.id === studentId);
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found in group`);
+    }
+
+    // Guruhning birinchi dars sanasini olish
+    const firstLesson = await this.lessonRepository.findOne({
+      where: { group: { id: groupId } },
+      order: { lessonDate: 'ASC' },
+    });
+    if (!firstLesson) {
+      throw new NotFoundException(`No lessons found for group with ID ${groupId}`);
+    }
+
+    const firstLessonDate = new Date(firstLesson.lessonDate);
+    const today = new Date();
+    const unpaidMonths: string[] = [];
+
+    // Birinchi dars oyidan boshlab har bir oy uchun to'lovlarni tekshirish
+    let currentDate = new Date(firstLessonDate.getFullYear(), firstLessonDate.getMonth(), 1);
+    while (currentDate <= today) {
+      const monthFor = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+      const payment = await this.paymentRepository.findOne({
+        where: {
+          student: { id: studentId },
+          group: { id: groupId },
+          monthFor,
+          paid: true,
+        },
+      });
+      if (!payment) {
+        unpaidMonths.push(monthFor);
+      }
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+
+    return unpaidMonths;
   }
 
   async getMonthlyIncome(month: number, year: number): Promise<number> {
@@ -293,29 +332,15 @@ export class PaymentService {
         const daysUntilReminder = this.getDaysUntilDue(today, reminderDate);
 
         if (daysUntilReminder === 0 || daysUntilDue === 0) {
-          const payment = await this.paymentRepository.findOne({
-            where: {
-              student: { id: student.id },
-              group: { id: group.id },
-              paid: false,
-            },
-            relations: ['student', 'group', 'course'],
-            order: { createdAt: 'DESC' },
-          });
-
-          if (payment && payment.student.parentPhone) {
+          const unpaidMonths = await this.getUnpaidMonths(student.id, group.id);
+          if (unpaidMonths.length > 0) {
+            const latestUnpaidMonth = unpaidMonths[0]; // Birinchi to'lanmagan oy
             const message =
               daysUntilReminder === 0
-                ? `Hurmatli ${payment.student.parentsName}, ${payment.group.name} guruhi uchun ${payment.amount} so'm to'lovni amalga oshirishingiz kerak.`
-                : `Hurmatli ${payment.student.parentsName}, ${payment.group.name} guruhi uchun ${payment.amount} so'm to'lov bugun oxirgi muddat. To'lov qilinmasa o'quvchi guruhdan vaqtincha chetlashtiriladi.`;
-            await this.sendSMS(payment.student.parentPhone, message);
-
-            if (daysUntilDue === 0 && !payment.paid) {
-              await this.groupsService.removeStudentFromGroup(group.id, student.id);
-              await this.sendSMS(
-                payment.student.parentPhone,
-                `Hurmatli ${payment.student.parentsName}, ${payment.group.name} guruhi uchun to'lov muddati tugadi. O'quvchi guruhdan vaqtincha chetlashtirildi.`,
-              );
+                ? `Hurmatli ${student.parentsName}, ${group.name} guruhi uchun ${latestUnpaidMonth} oy to'lovi qilinmagan. Iltimos, to'lovni amalga oshiring.`
+                : `Hurmatli ${student.parentsName}, ${group.name} guruhi uchun ${latestUnpaidMonth} oy to'lovi bugun oxirgi muddat. Iltimos, to'lovni amalga oshiring.`;
+            if (student.parentPhone) {
+              await this.sendSMS(student.parentPhone, message);
             }
           }
         }
@@ -338,7 +363,7 @@ export class PaymentService {
     let reminderYear = dueYear;
     let reminderMonth = dueMonth;
 
-    // Calculate the next payment due date (30 days from first lesson date)
+    // To'lov muddati (30 kunlik tsikl)
     const daysSinceFirstLesson = Math.floor(
       (currentDate.getTime() - firstLessonDate.getTime()) / (1000 * 60 * 60 * 24),
     );
@@ -357,7 +382,7 @@ export class PaymentService {
     paymentDueDate.setDate(currentDate.getDate() + daysUntilNextDue);
     paymentDueDate.setHours(0, 0, 0, 0);
 
-    // Calculate reminder date (10 days after the start of the payment cycle)
+    // Eslatma sanasi (tsikl boshidan 10 kun keyin)
     const reminderDaysSinceCycleStart = daysInCycle >= 10 ? daysInCycle - 10 : 20 + daysInCycle;
     const reminderDate = new Date(currentDate);
     reminderDate.setDate(currentDate.getDate() - reminderDaysSinceCycleStart);

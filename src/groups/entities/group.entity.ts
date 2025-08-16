@@ -17,13 +17,13 @@ export class Group {
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   price: number;
 
-  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm format, e.g. "09:00"
+  @Column({ type: 'varchar', length: 5, nullable: true })
   startTime: string;
 
-  @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm format, e.g. "11:00"
+  @Column({ type: 'varchar', length: 5, nullable: true })
   endTime: string;
 
-  @Column({ type: 'varchar', array: true, nullable: true }) // e.g. ["Monday", "Wednesday"]
+  @Column({ type: 'varchar', array: true, nullable: true })
   daysOfWeek: string[];
 
   @Column({ type: 'enum', enum: ['planned', 'active', 'completed'], default: 'planned' })

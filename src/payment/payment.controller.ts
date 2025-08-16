@@ -29,7 +29,6 @@ export class PaymentController {
     return this.paymentService.confirmTeacher(id, req.user.id);
   }
 
-  
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('search')
@@ -37,10 +36,10 @@ export class PaymentController {
     @Query('studentName') studentName: string,
     @Query('groupId') groupId: number,
     @Query('status') status: string,
+    @Query('monthFor') monthFor: string,
   ) {
-    return this.paymentService.searchPayments(studentName, groupId, status);
+    return this.paymentService.searchPayments(studentName, groupId, status, monthFor);
   }
-
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
@@ -55,8 +54,9 @@ export class PaymentController {
   findPaidPayments(
     @Query('studentName') studentName: string,
     @Query('groupId') groupId: number,
+    @Query('monthFor') monthFor: string,
   ) {
-    return this.paymentService.findPaidPayments(studentName, groupId);
+    return this.paymentService.findPaidPayments(studentName, groupId, monthFor);
   }
 
   @Roles('admin', 'superAdmin')
@@ -65,8 +65,19 @@ export class PaymentController {
   findUnpaidPayments(
     @Query('studentName') studentName: string,
     @Query('groupId') groupId: number,
+    @Query('monthFor') monthFor: string,
   ) {
-    return this.paymentService.findUnpaidPayments(studentName, groupId);
+    return this.paymentService.findUnpaidPayments(studentName, groupId, monthFor);
+  }
+
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('unpaid-months')
+  getUnpaidMonths(
+    @Query('studentId') studentId: number,
+    @Query('groupId') groupId: number,
+  ) {
+    return this.paymentService.getUnpaidMonths(studentId, groupId);
   }
 
   @Roles('admin', 'superAdmin')
@@ -86,8 +97,6 @@ export class PaymentController {
     return this.paymentService.getYearlyIncome(year);
   }
 
-
-  
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Delete(':id')
@@ -95,13 +104,10 @@ export class PaymentController {
     return this.paymentService.remove(id);
   }
 
-  
   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get(':id')
   findOne(@Param('id') id: number) {
     return this.paymentService.findOne(id);
   }
-
-
 }

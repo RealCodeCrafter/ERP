@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, Matches } from 'class-validator';
 
 export class CreatePaymentDto {
   @IsNotEmpty()
@@ -16,4 +16,9 @@ export class CreatePaymentDto {
   @IsNotEmpty()
   @IsNumber()
   amount: number;
+
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}$/, { message: 'monthFor must be in YYYY-MM format' })
+  monthFor: string;
 }
