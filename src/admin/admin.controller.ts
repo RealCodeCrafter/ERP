@@ -43,7 +43,7 @@ export class AdminController {
     return this.adminService.searchAdmins(name);
   }
 
-  @Roles('superAdmin')
+  @Roles('superAdmin', 'admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('statistics')
   getStatistics() {
