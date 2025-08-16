@@ -260,6 +260,7 @@ export class GroupsService {
     return qb.getMany();
   }
 
+
   async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
     const group = await this.getGroupById(id);
 

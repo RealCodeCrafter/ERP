@@ -122,4 +122,11 @@ export class GroupsController {
   restoreStudentToGroup(@Param('id') id: string, @Query('studentId') studentId: string) {
     return this.groupsService.restoreStudentToGroup(+id, +studentId);
   }
+
+   @Roles('admin', 'teacher', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get(':id')
+  async getGroupById(@Param('id') id: string) {
+    return this.groupsService.getGroupById(+id);
+  }
 }
