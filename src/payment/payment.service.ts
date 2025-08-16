@@ -55,6 +55,9 @@ export class PaymentService {
       throw new NotFoundException(`Course with ID ${courseId} not found`);
     }
 
+    // To'lov guruhning narxiga mos kelishini tekshirish
+    const paid = amount >= group.price;
+
     const payment = this.paymentRepository.create({
       amount,
       student,
@@ -62,10 +65,16 @@ export class PaymentService {
       course,
       adminStatus: 'accepted',
       teacherStatus: null,
-      paid: false,
+      paid,
     });
 
-    return this.paymentRepository.save(payment);
+    const savedPayment = await this.paymentRepository.save(payment);
+
+    if (paid && !group.students.some(s => s.id === studentId)) {
+      await this.groupsService.restoreStudentToGroup(groupId, studentId);
+    }
+
+    return savedPayment;
   }
 
   async findAll(): Promise<Payment[]> {
@@ -95,7 +104,9 @@ export class PaymentService {
       throw new ForbiddenException('You can only confirm payments for your own group');
     }
     payment.teacherStatus = 'accepted';
-    payment.paid = payment.adminStatus === 'accepted' && payment.teacherStatus === 'accepted';
+
+    // To'lov guruhning narxiga mos kelishini tekshirish
+    payment.paid = payment.adminStatus === 'accepted' && payment.teacherStatus === 'accepted' && payment.amount >= group.price;
 
     const savedPayment = await this.paymentRepository.save(payment);
 
@@ -114,6 +125,8 @@ export class PaymentService {
 
   async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
     const payment = await this.findOne(id);
+    let group = payment.group;
+
     if (updatePaymentDto.studentId) {
       const student = await this.studentRepository.findOne({ where: { id: updatePaymentDto.studentId } });
       if (!student) {
@@ -122,7 +135,7 @@ export class PaymentService {
       payment.student = student;
     }
     if (updatePaymentDto.groupId) {
-      const group = await this.groupRepository.findOne({ where: { id: updatePaymentDto.groupId } });
+      group = await this.groupRepository.findOne({ where: { id: updatePaymentDto.groupId } });
       if (!group) {
         throw new NotFoundException(`Group with ID ${updatePaymentDto.groupId} not found`);
       }
@@ -135,25 +148,22 @@ export class PaymentService {
       }
       payment.course = course;
     }
-    if (updatePaymentDto.amount) {
+    if (updatePaymentDto.amount !== undefined) {
       payment.amount = updatePaymentDto.amount;
     }
-    payment.paid = payment.adminStatus === 'accepted' && payment.teacherStatus === 'accepted';
+
+    // To'lov guruhning narxiga mos kelishini tekshirish
+    payment.paid = payment.adminStatus === 'accepted' && payment.teacherStatus === 'accepted' && payment.amount >= group.price;
+
     const savedPayment = await this.paymentRepository.save(payment);
 
-    if (payment.paid) {
-      const group = await this.groupRepository.findOne({
-        where: { id: payment.group.id },
-        relations: ['students'],
-      });
-      if (!group.students.some(s => s.id === payment.student.id)) {
-        await this.groupsService.restoreStudentToGroup(payment.group.id, payment.student.id);
-        if (payment.student.parentPhone) {
-          await this.sendSMS(
-            payment.student.parentPhone,
-            `Hurmatli ${payment.student.parentsName}, ${payment.group.name} guruhi uchun to'lov tasdiqlandi. O'quvchi guruhga qayta qo'shildi.`,
-          );
-        }
+    if (payment.paid && !group.students.some(s => s.id === payment.student.id)) {
+      await this.groupsService.restoreStudentToGroup(payment.group.id, payment.student.id);
+      if (payment.student.parentPhone) {
+        await this.sendSMS(
+          payment.student.parentPhone,
+          `Hurmatli ${payment.student.parentsName}, ${payment.group.name} guruhi uchun to'lov tasdiqlandi. O'quvchi guruhga qayta qo'shildi.`,
+        );
       }
     }
 

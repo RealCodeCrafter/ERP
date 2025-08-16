@@ -14,6 +14,9 @@ export class Group {
   @Column({ type: 'varchar', length: 100 })
   name: string;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  price: number;
+
   @Column({ type: 'varchar', length: 5, nullable: true }) // HH:mm format, e.g. "09:00"
   startTime: string;
 
@@ -23,8 +26,8 @@ export class Group {
   @Column({ type: 'varchar', array: true, nullable: true }) // e.g. ["Monday", "Wednesday"]
   daysOfWeek: string[];
 
-  @Column({ type: 'enum', enum: ['planned', 'active', 'frozen', 'completed'], default: 'planned' })
-  status: 'planned' | 'active' | 'frozen' | 'completed';
+  @Column({ type: 'enum', enum: ['planned', 'active', 'completed'], default: 'planned' })
+  status: 'planned' | 'active' | 'completed';
 
   @ManyToOne(() => Course, (course) => course.groups, { onDelete: 'CASCADE' })
   course: Course;

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, Between } from 'typeorm';
 import { Group } from './entities/group.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
@@ -24,9 +24,8 @@ export class GroupsService {
     private readonly paymentRepository: Repository<Payment>,
   ) {}
 
-
-   async createGroup(createGroupDto: CreateGroupDto): Promise<Group> {
-    const { name, courseId, teacherId, students, startTime, endTime, daysOfWeek } = createGroupDto;
+  async createGroup(createGroupDto: CreateGroupDto): Promise<Group> {
+    const { name, courseId, teacherId, students, startTime, endTime, daysOfWeek, price } = createGroupDto;
 
     const course = await this.courseRepository.findOne({ where: { id: courseId } });
     if (!course) throw new BadRequestException('Course not found');
@@ -50,7 +49,7 @@ export class GroupsService {
     }
 
     // 🔑 Boshlang‘ich holati planned
-    let status: 'planned' | 'active' | 'frozen' | 'completed' = 'planned';
+    let status: 'planned' | 'active' | 'completed' = 'planned';
     if (studentEntities.length >= 15) {
       status = 'active';
     }
@@ -64,37 +63,39 @@ export class GroupsService {
       startTime,
       endTime,
       daysOfWeek,
+      price,
     });
 
     return this.groupRepository.save(group);
   }
 
   /** 🔹 Student qo‘shish */
-async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
-  const group = await this.groupRepository.findOne({
-    where: { id: groupId },
-    relations: ['students'],
-  });
-  if (!group) throw new NotFoundException('Group not found');
+  async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
+    const group = await this.groupRepository.findOne({
+      where: { id: groupId },
+      relations: ['students'],
+    });
+    if (!group) throw new NotFoundException('Group not found');
 
-  const student = await this.studentRepository.findOne({ where: { id: studentId } });
-  if (!student) throw new NotFoundException('Student not found');
+    const student = await this.studentRepository.findOne({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Student not found');
 
-  // ❌ Agar student allaqachon guruhda bo‘lsa
-  if (group.students.some(s => s.id === studentId)) {
-    throw new BadRequestException('Student already in group');
+    // ❌ Agar student allaqachon guruhda bo‘lsa
+    if (group.students.some(s => s.id === studentId)) {
+      throw new BadRequestException('Student already in group');
+    }
+
+    group.students.push(student);
+
+    // 🔑 Avtomatik active agar 15 ta bo‘lsa
+    if (group.students.length >= 15) {
+      group.status = 'active';
+    } else {
+      group.status = 'planned';
+    }
+
+    return this.groupRepository.save(group);
   }
-
-  group.students.push(student);
-
-  // 🔑 Avtomatik active agar 15 ta bo‘lsa
-  if (group.students.length >= 15) {
-    group.status = 'active';
-  }
-
-  return this.groupRepository.save(group);
-}
-
 
   /** 🔹 Student chiqarib yuborish */
   async removeStudentFromGroup(groupId: number, studentId: number): Promise<Group> {
@@ -109,7 +110,9 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     if (group.students.length === 0) {
       group.status = 'completed';
     } else if (group.students.length < 15) {
-      group.status = 'frozen';
+      group.status = 'planned';
+    } else {
+      group.status = 'active';
     }
 
     return this.groupRepository.save(group);
@@ -139,6 +142,8 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     // 🔑 Tiklanganda ham tekshiramiz
     if (group.students.length >= 15) {
       group.status = 'active';
+    } else {
+      group.status = 'planned';
     }
 
     return this.groupRepository.save(group);
@@ -161,12 +166,14 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     if (toGroup.students.some(s => s.id === studentId)) {
       throw new BadRequestException('Student already in target group');
     }
-    
+
     fromGroup.students = fromGroup.students.filter(s => s.id !== studentId);
     if (fromGroup.students.length === 0) {
       fromGroup.status = 'completed';
     } else if (fromGroup.students.length < 15) {
-      fromGroup.status = 'frozen';
+      fromGroup.status = 'planned';
+    } else {
+      fromGroup.status = 'active';
     }
     await this.groupRepository.save(fromGroup);
 
@@ -174,6 +181,8 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     toGroup.students.push(student);
     if (toGroup.students.length >= 15) {
       toGroup.status = 'active';
+    } else {
+      toGroup.status = 'planned';
     }
 
     return this.groupRepository.save(toGroup);
@@ -188,9 +197,10 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     if (!group) throw new NotFoundException('Group not found');
     return group;
   }
+
   async getFrozenStudents(): Promise<Student[]> {
     const groups = await this.groupRepository.find({
-      where: { status: 'frozen' },
+      where: { status: 'planned' },
       relations: ['students', 'course'],
     });
 
@@ -210,7 +220,8 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
 
     return frozenStudents.map(item => item.student);
   }
-    async getGroupsByTeacherId(teacherId: number): Promise<Group[]> {
+
+  async getGroupsByTeacherId(teacherId: number): Promise<Group[]> {
     const teacher = await this.teacherRepository.findOne({
       where: { id: teacherId },
     });
@@ -220,7 +231,7 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     }
 
     return this.groupRepository.find({
-      where: { teacher: { id: teacher.id } }
+      where: { teacher: { id: teacher.id } },
     });
   }
 
@@ -266,11 +277,11 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     return qb.getMany();
   }
 
-
   async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
     const group = await this.getGroupById(id);
 
     if (updateGroupDto.name) group.name = updateGroupDto.name;
+    if (updateGroupDto.price !== undefined) group.price = updateGroupDto.price;
     if (updateGroupDto.startTime) group.startTime = updateGroupDto.startTime;
     if (updateGroupDto.endTime) group.endTime = updateGroupDto.endTime;
     if (updateGroupDto.daysOfWeek) group.daysOfWeek = updateGroupDto.daysOfWeek;
@@ -301,7 +312,7 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
         } else if (group.students.length === 0) {
           group.status = 'completed';
         } else {
-          group.status = 'frozen';
+          group.status = 'planned';
         }
       }
     }

@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, Between } from 'typeorm';
 import { Admin } from './entities/admin.entity';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
@@ -162,26 +162,124 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
     return admins;
   }
 
-  async getStatistics(): Promise<any> {
-    const studentCount = await this.studentRepository.count();
-    const groupCount = await this.groupRepository.count();
-    const courseCount = await this.courseRepository.count();
-    const totalRevenue = await this.paymentRepository
-      .find({ where: { paid: true } })
-      .then(payments => payments.reduce((sum, payment) => sum + payment.amount, 0));
-    const attendances = await this.attendanceRepository.find();
-    const totalAttendances = attendances.length;
-    const presentCount = attendances.filter(att => att.status === 'present').length;
-    const attendanceRate = totalAttendances > 0 ? (presentCount / totalAttendances) * 100 : 0;
+   async getStatistics(): Promise<any> {
+    // 🔹 Jami o‘quvchilar
+    const totalStudents = await this.studentRepository.count();
+
+    // 🔹 Guruhlar soni
+    const totalGroups = await this.groupRepository.count();
+
+    // 🔹 Faol va bitirgan o‘quvchilar
+    const activeStudents = await this.studentRepository
+      .createQueryBuilder('student')
+      .innerJoin('student.groups', 'group')
+      .where('group.status = :status', { status: 'active' })
+      .distinct(true)
+      .getCount();
+
+    const completedStudents = await this.studentRepository
+      .createQueryBuilder('student')
+      .innerJoin('student.groups', 'group')
+      .where('group.status = :status', { status: 'completed' })
+      .distinct(true)
+      .getCount();
+
+    // 🔹 Oylik daromad (active guruhlar bo'yicha kutilgan daromad)
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const activeGroups = await this.groupRepository.find({
+      where: { status: 'active' },
+      relations: ['students'],
+    });
+
+    const monthlyRevenue = activeGroups.reduce((sum, group) => {
+      return sum + group.students.length * group.price;
+    }, 0);
+
+    // 🔹 To'lov qilganlar (joriy oyda paid: true bo'lganlar soni)
+    const paidStudents = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .select('COUNT(DISTINCT payment.studentId)', 'count')
+      .where('payment.paid = :paid', { paid: true })
+      .andWhere('payment.createdAt BETWEEN :start AND :end', {
+        start: startOfMonth,
+        end: endOfMonth,
+      })
+      .getRawOne();
+
+    // 🔹 To'lov qilmaganlar (active guruhlardagi studentlar orasida)
+    const activeStudentsList = await this.studentRepository
+      .createQueryBuilder('student')
+      .innerJoin('student.groups', 'group')
+      .where('group.status = :status', { status: 'active' })
+      .distinct(true)
+      .getMany();
+
+    const paidStudentIds = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .select('DISTINCT payment.studentId')
+      .where('payment.paid = :paid', { paid: true })
+      .andWhere('payment.createdAt BETWEEN :start AND :end', {
+        start: startOfMonth,
+        end: endOfMonth,
+      })
+      .getRawMany();
+
+    const paidStudentIdsSet = new Set(paidStudentIds.map(p => p.studentId));
+    const unpaidStudents = activeStudentsList.filter(student => !paidStudentIdsSet.has(student.id)).length;
+
+    // 🔹 Oylik daromadlar (joriy yil uchun hozirgi oygacha va joriy oy uchun kutilgan)
+    const monthlyIncomes = [];
+    const currentMonth = now.getMonth(); // 0-based (0 = Yanvar, 7 = Avgust)
+
+    for (let month = 0; month <= currentMonth; month++) {
+      const monthStart = new Date(now.getFullYear(), month, 1);
+      const monthEnd = new Date(now.getFullYear(), month + 1, 0);
+
+      let income = 0;
+      if (month === currentMonth) {
+        // Joriy oy uchun kutilgan daromad (active guruhlar bo'yicha)
+        const activeGroupsInMonth = await this.groupRepository.find({
+          where: { status: 'active' },
+          relations: ['students'],
+        });
+        income = activeGroupsInMonth.reduce((sum, group) => {
+          return sum + group.students.length * group.price;
+        }, 0);
+      } else {
+        // O'tgan oylar uchun haqiqiy to'lovlar
+        const payments = await this.paymentRepository.find({
+          where: {
+            paid: true,
+            createdAt: Between(monthStart, monthEnd),
+          },
+        });
+        income = payments.reduce((sum, payment) => sum + payment.amount, 0);
+      }
+
+      monthlyIncomes.push({
+        month: month + 1,
+        income,
+      });
+    }
 
     return {
-      studentCount,
-      groupCount,
-      courseCount,
-      totalRevenue,
-      attendanceRate: Number(attendanceRate.toFixed(2)),
-      presentCount,
-      totalAttendances,
+      jami: totalStudents,
+      faolOquvchilar: activeStudents,
+      bitirganOquvchilar: completedStudents,
+      guruhlar: totalGroups,
+      oylikDaromad: monthlyRevenue,
+      tolovQilganlar: Number(paidStudents.count),
+      tolovQilmaganlar: unpaidStudents,
+      oylikDaromadlar: monthlyIncomes.map((mi, index) => ({
+        month: [
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ][index],
+        income: mi.income,
+      })),
     };
   }
 }

@@ -7,6 +7,9 @@ export class CreateGroupDto {
   @IsNumber()
   courseId: number;
 
+  @IsNumber()
+  price: number;
+
   @IsOptional()
   @IsNumber()
   teacherId?: number;

@@ -8,13 +8,13 @@ import { AuthGuard, Roles, RolesGuard } from '../auth/auth.guard';
 export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}
 
-   @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Post()
   create(@Body() createGroupDto: CreateGroupDto) {
     return this.groupsService.createGroup(createGroupDto);
   }
-  
+
   @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('my/teacher/groups')
@@ -90,7 +90,6 @@ export class GroupsController {
     return this.groupsService.transferStudentToGroup(+fromGroupId, +toGroupId, +studentId);
   }
 
-  
   @Roles('teacher', 'admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('frozen-students')
@@ -105,7 +104,6 @@ export class GroupsController {
     return this.groupsService.restoreStudentToGroup(+id, +studentId);
   }
 
-  
   @Roles('admin', 'teacher', 'student', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get()
@@ -113,7 +111,7 @@ export class GroupsController {
     return this.groupsService.getAllGroupsForAdmin();
   }
 
-   @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Put(':id')
   updateGroup(@Param('id') id: string, @Body() updateGroupDto: UpdateGroupDto) {
@@ -127,11 +125,10 @@ export class GroupsController {
     return this.groupsService.deleteGroup(+id);
   }
 
-   @Roles('admin', 'teacher', 'superAdmin')
+  @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get(':id')
   async getGroupById(@Param('id') id: string) {
     return this.groupsService.getGroupById(+id);
   }
-
 }

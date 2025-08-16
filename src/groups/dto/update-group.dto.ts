@@ -13,6 +13,10 @@ export class UpdateGroupDto {
   name?: string;
 
   @IsOptional()
+  @IsNumber()
+  price?: number;
+
+  @IsOptional()
   @IsString()
   startTime?: string;
 
@@ -41,8 +45,8 @@ export class UpdateGroupDto {
   daysOfWeek?: string[];
 
   @IsOptional()
-  @IsEnum(['active', 'frozen', 'completed'])
-  status?: 'active' | 'frozen' | 'completed';
+  @IsEnum(['active', 'planned', 'completed'])
+  status?: 'active' | 'planned' | 'completed';
 
   @IsOptional()
   @IsNumber()
