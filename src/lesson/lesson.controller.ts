@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Request, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Request, UseGuards, Query, ParseIntPipe, Req } from '@nestjs/common';
 import { LessonsService } from './lesson.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
@@ -36,6 +36,17 @@ export class LessonsController {
     const userId = req.user.id;
     return this.lessonsService.create(userId, lessonData);
   }
+
+  @Roles('teacher', 'student', 'admin', 'superAdmin')
+@UseGuards(AuthGuard, RolesGuard)
+@Get(':id/attendance-history')
+async getAttendanceHistoryByLesson(
+  @Param('id', ParseIntPipe) id: number,
+  @Req() req: any,
+) {
+  const userId = req.user?.id;
+  return this.lessonsService.getAttendanceHistoryByLesson(id, userId);
+}
 
   @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)

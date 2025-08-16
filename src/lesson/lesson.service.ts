@@ -47,7 +47,7 @@ export class LessonsService {
 
     if (!group) throw new NotFoundException('Group not found');
 
-    const isTeacher = group.teacher.id === user.id;
+    const isTeacher = group.teacher?.id === user.id;
     const isStudent = group.students.some(student => student.id === user.id);
 
     if (!isTeacher && !isStudent) {
@@ -82,11 +82,37 @@ export class LessonsService {
       throw new ForbiddenException('You are not assigned to this group');
     }
 
+    // Guruhdagi mavjud darslar sonini hisoblash
+    const lessonCount = await this.lessonRepository.count({
+      where: { group: { id: lessonData.groupId } },
+    });
+
+    // Joriy vaqtni lessonDate sifatida o'rnatish
+    const lessonDate = new Date();
+
+    // endDate ni guruhning startTime va endTime dan hisoblash
+    let endDate: Date | null = null;
+    if (group.startTime && group.endTime) {
+      const [startHours, startMinutes] = group.startTime.split(':').map(Number);
+      const [endHours, endMinutes] = group.endTime.split(':').map(Number);
+
+      const startDateTime = new Date(lessonDate);
+      startDateTime.setHours(startHours, startMinutes, 0, 0);
+
+      endDate = new Date(lessonDate);
+      endDate.setHours(endHours, endMinutes, 0, 0);
+
+      // Agar endTime kechroq bo'lsa, lekin keyingi kun bo'lmasligi kerak
+      if (endDate < startDateTime) {
+        endDate.setDate(endDate.getDate() + 1);
+      }
+    }
+
     const lesson = this.lessonRepository.create({
       lessonName: lessonData.lessonName,
-      lessonNumber: lessonData.lessonNumber,
-      lessonDate: new Date(),
-      endDate: lessonData.endDate ? new Date(lessonData.endDate) : null,
+      lessonNumber: lessonCount + 1,
+      lessonDate,
+      endDate,
       group,
     });
 
@@ -112,8 +138,6 @@ export class LessonsService {
     const updatedLesson = await this.lessonRepository.save({
       ...lesson,
       lessonName: updateLessonDto.lessonName || lesson.lessonName,
-      lessonNumber: updateLessonDto.lessonNumber || lesson.lessonNumber,
-      endDate: updateLessonDto.endDate ? new Date(updateLessonDto.endDate) : lesson.endDate,
     });
 
     return updatedLesson;
@@ -172,4 +196,45 @@ export class LessonsService {
       };
     });
   }
+
+  async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<any> {
+  const user = await this.getUserById(userId);
+
+  const lesson = await this.lessonRepository.findOne({
+    where: { id: lessonId },
+    relations: ['group', 'group.teacher', 'group.students', 'attendances', 'attendances.student'],
+  });
+
+  if (!lesson) {
+    throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
+  }
+
+  const isTeacher = lesson.group.teacher?.id === user.id;
+  const isStudent = lesson.group.students.some(student => student.id === user.id);
+
+  if (!isTeacher && !isStudent) {
+    throw new ForbiddenException('You can only view attendance history for lessons in your own group');
+  }
+
+  const attendances = await this.attendanceRepository.find({
+    where: { lesson: { id: lessonId } },
+    relations: ['student'],
+    order: { createdAt: 'DESC' },
+  });
+  
+  const filteredAttendances = isStudent
+    ? attendances.filter(attendance => attendance.student.id === user.id)
+    : attendances;
+
+  return filteredAttendances.map(attendance => ({
+    studentId: attendance.student.id,
+    studentName: `${attendance.student.firstName} ${attendance.student.lastName}`,
+    status: attendance.status,
+    date: attendance.createdAt,
+    lessonId: lesson.id,
+    lessonName: lesson.lessonName,
+    groupId: lesson.group.id,
+    groupName: lesson.group.name,
+  }));
+}
 }

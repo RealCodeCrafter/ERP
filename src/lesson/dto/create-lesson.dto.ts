@@ -1,24 +1,9 @@
-import { Type } from 'class-transformer';
-import { IsString, IsNotEmpty, IsOptional, IsInt, IsDateString, IsArray, ValidateNested } from 'class-validator';
-import { CreateAttendanceDto } from 'src/attendance/dto/create-attendance.dto';  // to'g'ri import
-import { Attendance } from 'src/attendance/entities/attendance.entity'; // Agar boshqa entity bo'lsa, undan foydalanish o'rinli emas
+import { IsString, IsNumber } from 'class-validator';
 
 export class CreateLessonDto {
   @IsString()
-  @IsNotEmpty()
   lessonName: string;
 
-  @IsString()
-  @IsNotEmpty()
-  lessonNumber: string;
-
-  @IsInt()
-  @IsNotEmpty()
+  @IsNumber()
   groupId: number;
-
-  @IsOptional()
-  @IsDateString()
-  endDate?: string;
-  
-  attendance?: { studentId: number; status: 'present' | 'absent' | 'late' }[];
 }

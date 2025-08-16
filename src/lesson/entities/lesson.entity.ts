@@ -7,11 +7,11 @@ export class Lesson {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'varchar', length: 100 , nullable: true})
+  @Column({ type: 'varchar', length: 100, nullable: true })
   lessonName: string;
 
-  @Column({ type: 'varchar', length: 50, default: 0 })
-  lessonNumber: string;
+  @Column({ type: 'int', default: 0 })
+  lessonNumber: number;
 
   @Column({ type: 'timestamp' })
   lessonDate: Date;
