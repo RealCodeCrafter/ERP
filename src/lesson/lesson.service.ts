@@ -197,7 +197,7 @@ export class LessonsService {
     });
   }
 
-  async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<any> {
+async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<any> {
   const user = await this.getUserById(userId);
 
   const lesson = await this.lessonRepository.findOne({
@@ -216,25 +216,45 @@ export class LessonsService {
     throw new ForbiddenException('You can only view attendance history for lessons in your own group');
   }
 
-  const attendances = await this.attendanceRepository.find({
-    where: { lesson: { id: lessonId } },
-    relations: ['student'],
-    order: { createdAt: 'DESC' },
-  });
-  
+  const attendances = await this.attendanceRepository
+    .createQueryBuilder('attendance')
+    .leftJoinAndSelect('attendance.student', 'student')
+    .leftJoinAndSelect('attendance.lesson', 'lesson')
+    .leftJoinAndSelect('lesson.group', 'group')
+    .where('attendance.lessonId = :lessonId', { lessonId })
+    .orderBy('student.firstName', 'ASC') // Alifbo tartibida saralash
+    .getMany();
+
   const filteredAttendances = isStudent
     ? attendances.filter(attendance => attendance.student.id === user.id)
     : attendances;
 
-  return filteredAttendances.map(attendance => ({
-    studentId: attendance.student.id,
-    studentName: `${attendance.student.firstName} ${attendance.student.lastName}`,
-    status: attendance.status,
-    date: attendance.createdAt,
-    lessonId: lesson.id,
-    lessonName: lesson.lessonName,
-    groupId: lesson.group.id,
-    groupName: lesson.group.name,
-  }));
+  // Statistikani hisoblash
+  const totalStudents = filteredAttendances.length;
+  const presentCount = filteredAttendances.filter(a => a.status === 'present').length;
+  const absentCount = filteredAttendances.filter(a => a.status === 'absent').length;
+  const lateCount = filteredAttendances.filter(a => a.status === 'late').length;
+
+  // Natijani kerakli formatda shakllantirish
+  return {
+    title: "O'quvchilar Davomati",
+    description: "O'quvchilarning kunlik davomat holatini kuzatib boring",
+    statistics: {
+      totalStudents: totalStudents,
+      present: presentCount,
+      absent: absentCount,
+      late: lateCount,
+    },
+    date: lesson.lessonDate.toISOString().split('T')[0],
+    exportable: true,
+    students: filteredAttendances.map((attendance, index) => ({
+      initial: attendance.student.firstName.charAt(0).toUpperCase(),
+      studentName: `${attendance.student.firstName} ${attendance.student.lastName}`,
+      phone: attendance.student.phone,
+      groupName: lesson.group.name,
+      status: attendance.status === 'present' ? 'Hozir' : attendance.status === 'absent' ? 'Yo\'q' : 'Kech',
+      actions: '', 
+    })),
+  };
 }
 }
