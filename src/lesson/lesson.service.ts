@@ -251,12 +251,10 @@ async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<an
       : lesson.lessonDate.toISOString().split('T')[0],
     exportable: true,
     students: filteredAttendances.map((attendance, index) => ({
-      initial: attendance.student.firstName.charAt(0).toUpperCase(),
       studentName: `${attendance.student.firstName} ${attendance.student.lastName}`,
       phone: attendance.student.phone,
       groupName: lesson.group.name,
-      status: attendance.status === 'present' ? 'Hozir' : attendance.status === 'absent' ? 'Yo\'q' : 'Kech',
-      actions: '', // Amallar uchun bo'sh joy (frontendda ishlatiladi)
+      status: attendance.status === 'present' ? 'present' : attendance.status === 'absent' ? 'absent' : 'late',
     })),
   };
 }
