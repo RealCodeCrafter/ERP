@@ -288,12 +288,22 @@ async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
       group.teacher = teacher;
     }
 
-    if (updateGroupDto.studentIds && updateGroupDto.studentIds.length > 0) {
-      const students = await this.studentRepository.findByIds(updateGroupDto.studentIds);
-      if (students.length !== updateGroupDto.studentIds.length) {
+    if (updateGroupDto.studentIds !== undefined) {
+      const studentIds = updateGroupDto.studentIds ?? [];
+      const students = await this.studentRepository.findByIds(studentIds);
+      if (students.length !== studentIds.length) {
         throw new NotFoundException('One or more students not found');
       }
       group.students = students;
+      if (updateGroupDto.status === undefined) {
+        if (group.students.length >= 15) {
+          group.status = 'active';
+        } else if (group.students.length === 0) {
+          group.status = 'completed';
+        } else {
+          group.status = 'frozen';
+        }
+      }
     }
 
     return this.groupRepository.save(group);
