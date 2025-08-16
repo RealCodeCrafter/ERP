@@ -4,7 +4,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Admin } from '../admin/entities/admin.entity';
 import { Teacher } from '../teacher/entities/teacher.entity';
@@ -41,12 +40,12 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    // Parolni tekshirish (agar password saqlanayotgan bo‘lsa)
-    if (user.password && !(await bcrypt.compare(loginDto.password, user.password))) {
+    // Parolni tekshirish (oddiy text taqqoslash)
+    if (user.password && user.password !== loginDto.password) {
       throw new UnauthorizedException('Parol noto‘g‘ri');
     }
 
-    // JWT token yaratish (expiresIn bermaymiz → doimiy token)
+    // JWT token yaratish (muddatsiz)
     const payload = { id: user.id, username: user.username, role: user.role };
     const accessToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
