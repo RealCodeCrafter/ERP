@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository, Between } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Group } from './entities/group.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
@@ -48,18 +48,12 @@ export class GroupsService {
       throw new BadRequestException('Group with the same name already exists for this course');
     }
 
-    // 🔑 Boshlang‘ich holati planned
-    let status: 'planned' | 'active' | 'completed' = 'planned';
-    if (studentEntities.length >= 15) {
-      status = 'active';
-    }
-
     const group = this.groupRepository.create({
       name,
       course,
       teacher,
       students: studentEntities,
-      status,
+      status: 'active',
       startTime,
       endTime,
       daysOfWeek,
@@ -69,35 +63,24 @@ export class GroupsService {
     return this.groupRepository.save(group);
   }
 
-  /** 🔹 Student qo‘shish */
   async addStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     const group = await this.groupRepository.findOne({
-      where: { id: groupId },
+      where: { id: groupId, status: 'active' },
       relations: ['students'],
     });
-    if (!group) throw new NotFoundException('Group not found');
+    if (!group) throw new NotFoundException('Active group not found');
 
     const student = await this.studentRepository.findOne({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Student not found');
 
-    // ❌ Agar student allaqachon guruhda bo‘lsa
     if (group.students.some(s => s.id === studentId)) {
       throw new BadRequestException('Student already in group');
     }
 
     group.students.push(student);
-
-    // 🔑 Avtomatik active agar 15 ta bo‘lsa
-    if (group.students.length >= 15) {
-      group.status = 'active';
-    } else {
-      group.status = 'planned';
-    }
-
     return this.groupRepository.save(group);
   }
 
-  /** 🔹 Studentni qayta tiklash */
   async restoreStudentToGroup(groupId: number, studentId: number): Promise<Group> {
     const group = await this.getGroupById(groupId);
 
@@ -117,14 +100,6 @@ export class GroupsService {
     }
 
     group.students.push(student);
-
-    // 🔑 Tiklanganda ham tekshiramiz
-    if (group.students.length >= 15) {
-      group.status = 'active';
-    } else {
-      group.status = 'planned';
-    }
-
     return this.groupRepository.save(group);
   }
 
@@ -147,27 +122,21 @@ export class GroupsService {
     }
 
     fromGroup.students = fromGroup.students.filter(s => s.id !== studentId);
-    if (fromGroup.students.length === 0) {
-      fromGroup.status = 'completed';
-    } else if (fromGroup.students.length < 15) {
-      fromGroup.status = 'planned';
-    } else {
-      fromGroup.status = 'active';
-    }
     await this.groupRepository.save(fromGroup);
 
-    // 🔑 Yangi guruhga qo‘shamiz
     toGroup.students.push(student);
-    if (toGroup.students.length >= 15) {
-      toGroup.status = 'active';
-    } else {
-      toGroup.status = 'planned';
-    }
-
     return this.groupRepository.save(toGroup);
   }
 
-  /** 🔹 Bitta guruhni olish */
+  async completeGroup(id: number): Promise<Group> {
+    const group = await this.getGroupById(id);
+    if (group.status === 'completed') {
+      throw new BadRequestException('Group is already completed');
+    }
+    group.status = 'completed';
+    return this.groupRepository.save(group);
+  }
+
   async getGroupById(id: number): Promise<Group> {
     const group = await this.groupRepository.findOne({
       where: { id },
@@ -175,29 +144,6 @@ export class GroupsService {
     });
     if (!group) throw new NotFoundException('Group not found');
     return group;
-  }
-
-  async getFrozenStudents(): Promise<Student[]> {
-    const groups = await this.groupRepository.find({
-      where: { status: 'planned' },
-      relations: ['students', 'course'],
-    });
-
-    const frozenStudents = [];
-    for (const group of groups) {
-      const unpaidStudents = await this.paymentRepository.find({
-        where: { group: { id: group.id }, paid: false },
-        relations: ['student'],
-      });
-      frozenStudents.push(
-        ...unpaidStudents.map(payment => ({
-          student: payment.student,
-          group: { id: group.id, name: group.name, course: group.course },
-        })),
-      );
-    }
-
-    return frozenStudents.map(item => item.student);
   }
 
   async getGroupsByTeacherId(teacherId: number): Promise<Group[]> {
@@ -210,7 +156,7 @@ export class GroupsService {
     }
 
     return this.groupRepository.find({
-      where: { teacher: { id: teacher.id } },
+      where: { teacher: { id: teacher.id }, status: 'active' },
     });
   }
 
@@ -221,15 +167,16 @@ export class GroupsService {
       .leftJoinAndSelect('g.teacher', 'teacher')
       .leftJoinAndSelect('g.students', 'student')
       .where('student.username = :username', { username })
+      .andWhere('g.status = :status', { status: 'active' })
       .getMany();
   }
 
   async getStudentGroups(groupId: number): Promise<Student[]> {
     const group = await this.groupRepository.findOne({
-      where: { id: groupId },
+      where: { id: groupId, status: 'active' },
       relations: ['students'],
     });
-    if (!group) throw new NotFoundException('Group not found');
+    if (!group) throw new NotFoundException('Active group not found');
     return group.students;
   }
 
@@ -244,7 +191,8 @@ export class GroupsService {
       .createQueryBuilder('g')
       .leftJoinAndSelect('g.course', 'course')
       .leftJoinAndSelect('g.teacher', 'teacher')
-      .leftJoinAndSelect('g.students', 'students');
+      .leftJoinAndSelect('g.students', 'students')
+      .where('g.status = :status', { status: 'active' });
 
     if (name) {
       qb.andWhere('g.name ILIKE :name', { name: `%${name}%` });
@@ -256,7 +204,6 @@ export class GroupsService {
     return qb.getMany();
   }
 
-   /** 🔹 Student chiqarib yuborish */
   async removeStudentFromGroup(groupId: number, studentId: number): Promise<Group> {
     const group = await this.getGroupById(groupId);
 
@@ -264,20 +211,10 @@ export class GroupsService {
     if (!inGroup) throw new NotFoundException('Student not found in group');
 
     group.students = group.students.filter(s => s.id !== studentId);
-
-    // 🔑 Holatlarni avtomatik o‘zgartirish
-    if (group.students.length === 0) {
-      group.status = 'completed';
-    } else if (group.students.length < 15) {
-      group.status = 'planned';
-    } else {
-      group.status = 'active';
-    }
-
     return this.groupRepository.save(group);
   }
 
-   async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
+  async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
     const group = await this.getGroupById(id);
 
     if (updateGroupDto.name) group.name = updateGroupDto.name;
@@ -307,18 +244,6 @@ export class GroupsService {
       group.students = students;
     }
 
-    if (updateGroupDto.status) {
-      group.status = updateGroupDto.status;
-    } else {
-      if (group.students.length >= 15) {
-        group.status = 'active';
-      } else if (group.students.length === 0) {
-        group.status = 'completed';
-      } else {
-        group.status = 'planned';
-      }
-    }
-
     return this.groupRepository.save(group);
   }
 
@@ -330,7 +255,7 @@ export class GroupsService {
 
   async getGroupsByCourseId(courseId: number): Promise<Group[]> {
     return this.groupRepository.find({
-      where: { course: { id: courseId } },
+      where: { course: { id: courseId }, status: 'active' },
       relations: ['course', 'teacher', 'students'],
     });
   }

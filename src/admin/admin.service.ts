@@ -163,10 +163,8 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
   }
 
    async getStatistics(): Promise<any> {
-    // 🔹 Jami o‘quvchilar
     const totalStudents = await this.studentRepository.count();
 
-    // 🔹 Guruhlar soni
     const totalGroups = await this.groupRepository.count();
 
     // 🔹 Faol va bitirgan o‘quvchilar
@@ -184,7 +182,6 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
       .distinct(true)
       .getCount();
 
-    // 🔹 Oylik daromad (active guruhlar bo'yicha kutilgan daromad)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -198,7 +195,6 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
       return sum + group.students.length * group.price;
     }, 0);
 
-    // 🔹 To'lov qilganlar (joriy oyda paid: true bo'lganlar soni)
     const paidStudents = await this.paymentRepository
       .createQueryBuilder('payment')
       .select('COUNT(DISTINCT payment.studentId)', 'count')
@@ -208,8 +204,6 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
         end: endOfMonth,
       })
       .getRawOne();
-
-    // 🔹 To'lov qilmaganlar (active guruhlardagi studentlar orasida)
     const activeStudentsList = await this.studentRepository
       .createQueryBuilder('student')
       .innerJoin('student.groups', 'group')
@@ -229,10 +223,8 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
 
     const paidStudentIdsSet = new Set(paidStudentIds.map(p => p.studentId));
     const unpaidStudents = activeStudentsList.filter(student => !paidStudentIdsSet.has(student.id)).length;
-
-    // 🔹 Oylik daromadlar (joriy yil uchun hozirgi oygacha va joriy oy uchun kutilgan)
     const monthlyIncomes = [];
-    const currentMonth = now.getMonth(); // 0-based (0 = Yanvar, 7 = Avgust)
+    const currentMonth = now.getMonth();
 
     for (let month = 0; month <= currentMonth; month++) {
       const monthStart = new Date(now.getFullYear(), month, 1);
@@ -240,7 +232,6 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
 
       let income = 0;
       if (month === currentMonth) {
-        // Joriy oy uchun kutilgan daromad (active guruhlar bo'yicha)
         const activeGroupsInMonth = await this.groupRepository.find({
           where: { status: 'active' },
           relations: ['students'],
@@ -249,7 +240,6 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
           return sum + group.students.length * group.price;
         }, 0);
       } else {
-        // O'tgan oylar uchun haqiqiy to'lovlar
         const payments = await this.paymentRepository.find({
           where: {
             paid: true,

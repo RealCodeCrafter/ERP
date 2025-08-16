@@ -138,71 +138,65 @@ export class StudentsService {
   }
 
   async createStudent(createStudentDto: CreateStudentDto): Promise<Student> {
-  const { phone, username, password, groupId, firstName, lastName, address, parentsName, parentPhone } = createStudentDto;
+    const { phone, username, password, groupId, firstName, lastName, address, parentsName, parentPhone } = createStudentDto;
 
-  const existingStudent = await this.studentRepository.findOne({ where: { phone } });
-  if (existingStudent) {
-    throw new ConflictException(`Student with phone ${phone} already exists`);
-  }
-
-  if (username) {
-    const existingUsername = await this.studentRepository.findOne({ where: { username } });
-    if (existingUsername) {
-      throw new ConflictException(`Username ${username} already exists`);
+    const existingStudent = await this.studentRepository.findOne({ where: { phone } });
+    if (existingStudent) {
+      throw new ConflictException(`Student with phone ${phone} already exists`);
     }
+
+    if (username) {
+      const existingUsername = await this.studentRepository.findOne({ where: { username } });
+      if (existingUsername) {
+        throw new ConflictException(`Username ${username} already exists`);
+      }
+    }
+
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
+    const group = await this.groupRepository.findOne({ 
+      where: { id: groupId, status: 'active' }, 
+      relations: ['course', 'students'] 
+    });
+    if (!group) {
+      throw new NotFoundException(`Active group with ID ${groupId} not found`);
+    }
+
+    const profile = this.profileRepository.create({
+      firstName,
+      lastName,
+      username,
+      password: hashedPassword,
+      address,
+      phone,
+      parentsName,
+      parentPhone,
+    });
+    const savedProfile = await this.profileRepository.save(profile);
+
+    const student = this.studentRepository.create({
+      firstName,
+      lastName,
+      phone,
+      address,
+      username,
+      password: hashedPassword,
+      parentsName,
+      parentPhone,
+      groups: [group],
+      role: 'student',
+      profile: savedProfile,
+    });
+    const savedStudent = await this.studentRepository.save(student);
+
+    group.students = group.students ? [...group.students, savedStudent] : [savedStudent];
+    await this.groupRepository.save(group);
+
+    return this.studentRepository.findOne({ 
+      where: { id: savedStudent.id }, 
+      relations: ['groups', 'groups.course', 'profile'] 
+    });
   }
-
-  const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
-
-  const group = await this.groupRepository.findOne({ 
-    where: { id: groupId }, 
-    relations: ['course', 'students'] 
-  });
-  if (!group) {
-    throw new NotFoundException(`Group with ID ${groupId} not found`);
-  }
-
-  const profile = this.profileRepository.create({
-    firstName,
-    lastName,
-    username,
-    password: hashedPassword,
-    address,
-    phone,
-    parentsName,
-    parentPhone,
-  });
-  const savedProfile = await this.profileRepository.save(profile);
-
-  const student = this.studentRepository.create({
-    firstName,
-    lastName,
-    phone,
-    address,
-    username,
-    password: hashedPassword,
-    parentsName,
-    parentPhone,
-    groups: [group],
-    role: 'student',
-    profile: savedProfile,
-  });
-  const savedStudent = await this.studentRepository.save(student);
-
-  group.students = group.students ? [...group.students, savedStudent] : [savedStudent];
-
-  if (group.students.length >= 15) {
-    group.status = 'active';
-  } else if (group.students.length > 0) {
-    group.status = 'planned';
-  }
-  await this.groupRepository.save(group);
-
-  return this.studentRepository.findOne({ 
-    where: { id: savedStudent.id }, 
-    relations: ['groups', 'groups.course', 'profile'] 
-  });
-}
 
   async updateStudent(id: number, updateStudentDto: UpdateStudentDto): Promise<Student> {
     const student = await this.getStudentById(id);
@@ -211,20 +205,15 @@ export class StudentsService {
 
     if (groupId) {
       const group = await this.groupRepository.findOne({
-        where: { id: groupId },
+        where: { id: groupId, status: 'active' },
         relations: ['course', 'students'],
       });
       if (!group) {
-        throw new NotFoundException(`Group with ID ${groupId} not found`);
+        throw new NotFoundException(`Active group with ID ${groupId} not found`);
       }
-      // Agar guruh o'zgartirilsa, yangi guruhga qo'shiladi va status tekshiriladi
       if (!student.groups.some(g => g.id === groupId)) {
         student.groups = [group];
-        if (group.students.length + 1 >= 15) {
-          group.status = 'active';
-        } else if (group.students.length + 1 > 0) {
-          group.status = 'planned';
-        }
+        group.students = group.students ? [...group.students, student] : [student];
         await this.groupRepository.save(group);
       }
     }
@@ -284,24 +273,14 @@ export class StudentsService {
   async deleteStudent(id: number): Promise<void> {
     const student = await this.getStudentById(id);
 
-    // Studentning guruhlarini tekshirish va statuslarni yangilash
     for (const group of student.groups) {
       const groupWithStudents = await this.groupRepository.findOne({
-        where: { id: group.id },
+        where: { id: group.id, status: 'active' },
         relations: ['students'],
       });
 
       if (groupWithStudents) {
         groupWithStudents.students = groupWithStudents.students.filter(s => s.id !== id);
-
-        if (groupWithStudents.students.length === 0) {
-          groupWithStudents.status = 'completed';
-        } else if (groupWithStudents.students.length < 15) {
-          groupWithStudents.status = 'planned';
-        } else {
-          groupWithStudents.status = 'active';
-        }
-
         await this.groupRepository.save(groupWithStudents);
       }
     }
@@ -337,7 +316,6 @@ export class StudentsService {
       throw new NotFoundException(`Student with ID ${id} not found`);
     }
 
-    // O'zbekcha kun nomlari uchun mapping
     const dayTranslations: { [key: string]: string } = {
       Monday: 'Dushanba',
       Tuesday: 'Seshanba',
@@ -348,7 +326,6 @@ export class StudentsService {
       Sunday: 'Yakshanba',
     };
 
-    // Guruhlar ma'lumotlarini formatlash
     const groups = await Promise.all(
       student.groups.map(async (group) => {
         const firstLesson = await this.lessonRepository.findOne({
@@ -356,7 +333,6 @@ export class StudentsService {
           order: { lessonDate: 'ASC' },
         });
 
-        // Faqat to'langan to'lovlarni olish
         const payments = await this.paymentRepository.find({
           where: { student: { id }, group: { id: group.id }, paid: true },
           order: { createdAt: 'ASC' },
@@ -371,9 +347,6 @@ export class StudentsService {
             (currentDate.getTime() - firstLesson.lessonDate.getTime()) / (1000 * 60 * 60 * 24),
           );
           const cycleNumber = Math.floor(daysSinceFirstLesson / 30);
-          const isFirstCycle = cycleNumber === 0;
-
-          // Birinchi tsikl bo'lsa yoki keyingi tsikl uchun to'lov muddati
           const paymentDueDate = new Date(firstLesson.lessonDate);
           paymentDueDate.setDate(paymentDueDate.getDate() + (cycleNumber + 1) * 30);
           nextPaymentDate = paymentDueDate.toLocaleDateString('uz-UZ', {
@@ -381,11 +354,6 @@ export class StudentsService {
             month: 'long',
             year: 'numeric',
           });
-
-          // Birinchi tsiklda to'lov bo'lmasa, payments bo'sh bo'ladi
-          if (isFirstCycle && payments.length === 0) {
-            payments.splice(0, payments.length); // Bo'shatish
-          }
         }
 
         const paymentHistory = payments.map((payment, index) => ({

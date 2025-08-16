@@ -3,6 +3,7 @@ import { GroupsService } from './group.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { AuthGuard, Roles, RolesGuard } from '../auth/auth.guard';
+import { Group } from './entities/group.entity';
 
 @Controller('groups')
 export class GroupsController {
@@ -90,13 +91,6 @@ export class GroupsController {
     return this.groupsService.transferStudentToGroup(+fromGroupId, +toGroupId, +studentId);
   }
 
-  @Roles('teacher', 'admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('frozen-students')
-  getFrozenStudents() {
-    return this.groupsService.getFrozenStudents();
-  }
-
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Post(':id/restore-student')
@@ -123,6 +117,15 @@ export class GroupsController {
   @Delete(':id')
   deleteGroup(@Param('id') id: string) {
     return this.groupsService.deleteGroup(+id);
+  }
+
+  
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Put(':id/complete')
+  @Roles('admin', 'superAdmin')
+  completeGroup(@Param('id') id: number): Promise<Group> {
+    return this.groupsService.completeGroup(id);
   }
 
   @Roles('admin', 'teacher', 'superAdmin')

@@ -26,8 +26,8 @@ export class Group {
   @Column({ type: 'varchar', array: true, nullable: true })
   daysOfWeek: string[];
 
-  @Column({ type: 'enum', enum: ['planned', 'active', 'completed'], default: 'planned' })
-  status: 'planned' | 'active' | 'completed';
+  @Column({ type: 'enum', enum: ['active', 'completed', 'planned'], default: 'active' })
+  status: 'active' | 'completed';
 
   @ManyToOne(() => Course, (course) => course.groups, { onDelete: 'CASCADE' })
   course: Course;
