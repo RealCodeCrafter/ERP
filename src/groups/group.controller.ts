@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Put, NotFoundException, Req } from '@nestjs/common';
 import { GroupsService } from './group.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
@@ -22,12 +22,18 @@ export class GroupsController {
     return this.groupsService.getAllGroupsForAdmin();
   }
 
+  
   @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)
-  @Get('teacher/:username')
-  getGroupsByTeacherId(@Param('username') username: string) {
-    return this.groupsService.getGroupsByTeacherId(username);
+  @Get('my/teacher/groups')
+  async getGroupsByTeacher(@Req() req: any) {
+    const teacherId = req.user?.id;
+    if (!teacherId) {
+      throw new NotFoundException('Teacher not found in token');
+    }
+    return this.groupsService.getGroupsByTeacherId(teacherId);
   }
+
 
   @Roles('student')
   @UseGuards(AuthGuard, RolesGuard)

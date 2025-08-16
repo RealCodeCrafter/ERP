@@ -177,13 +177,17 @@ export class GroupsService {
     return group;
   }
 
-  async getGroupsByTeacherId(username: string): Promise<Group[]> {
-    const teacher = await this.teacherRepository.findOne({ where: { username } });
-    if (!teacher) throw new NotFoundException('Teacher not found');
+    async getGroupsByTeacherId(teacherId: number): Promise<Group[]> {
+    const teacher = await this.teacherRepository.findOne({
+      where: { id: teacherId },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException('Teacher not found');
+    }
 
     return this.groupRepository.find({
-      where: { teacher: { id: teacher.id } },
-      relations: ['course', 'students', 'teacher'],
+      where: { teacher: { id: teacher.id } }
     });
   }
 
