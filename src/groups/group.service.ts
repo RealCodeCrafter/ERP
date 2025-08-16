@@ -277,7 +277,8 @@ export class GroupsService {
     return qb.getMany();
   }
 
-  async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
+  
+   async updateGroup(id: number, updateGroupDto: UpdateGroupDto): Promise<Group> {
     const group = await this.getGroupById(id);
 
     if (updateGroupDto.name) group.name = updateGroupDto.name;
@@ -285,7 +286,6 @@ export class GroupsService {
     if (updateGroupDto.startTime) group.startTime = updateGroupDto.startTime;
     if (updateGroupDto.endTime) group.endTime = updateGroupDto.endTime;
     if (updateGroupDto.daysOfWeek) group.daysOfWeek = updateGroupDto.daysOfWeek;
-    if (updateGroupDto.status) group.status = updateGroupDto.status;
 
     if (updateGroupDto.courseId) {
       const course = await this.courseRepository.findOne({ where: { id: updateGroupDto.courseId } });
@@ -301,19 +301,22 @@ export class GroupsService {
 
     if (updateGroupDto.studentIds !== undefined) {
       const studentIds = updateGroupDto.studentIds ?? [];
-      const students = await this.studentRepository.findByIds(studentIds);
+      const students = await this.studentRepository.findBy({ id: In(studentIds) });
       if (students.length !== studentIds.length) {
         throw new NotFoundException('One or more students not found');
       }
       group.students = students;
-      if (updateGroupDto.status === undefined) {
-        if (group.students.length >= 15) {
-          group.status = 'active';
-        } else if (group.students.length === 0) {
-          group.status = 'completed';
-        } else {
-          group.status = 'planned';
-        }
+    }
+
+    if (updateGroupDto.status) {
+      group.status = updateGroupDto.status;
+    } else {
+      if (group.students.length >= 15) {
+        group.status = 'active';
+      } else if (group.students.length === 0) {
+        group.status = 'completed';
+      } else {
+        group.status = 'planned';
       }
     }
 
