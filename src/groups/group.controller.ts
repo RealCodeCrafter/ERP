@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Put, NotFoundException, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Put, NotFoundException, Req, ParseIntPipe, HttpStatus } from '@nestjs/common';
 import { GroupsService } from './group.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
@@ -26,14 +26,15 @@ export class GroupsController {
     return this.groupsService.getGroupsByTeacherId(teacherId);
   }
 
-  
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Post(':id/add-student')
-  addStudentToGroup(@Param('id') id: string, @Query('studentId') studentId: string) {
-    return this.groupsService.addStudentToGroup(+id, +studentId);
+  addStudentToGroup(
+    @Param('id', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) id: number,
+    @Query('studentId', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.BAD_REQUEST })) studentId: number,
+  ) {
+    return this.groupsService.addStudentToGroup(id, studentId);
   }
-
 
   @Roles('student', 'superAdmin', 'admin')
   @UseGuards(AuthGuard, RolesGuard)
