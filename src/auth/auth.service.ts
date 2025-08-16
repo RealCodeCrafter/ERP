@@ -5,13 +5,11 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-
 import { Admin } from '../admin/entities/admin.entity';
 import { Teacher } from '../teacher/entities/teacher.entity';
 import { Student } from '../students/entities/student.entity';
-import { SuperAdmin } from '../super-admin/entities/super-admin.entity';
+import { Repository } from 'typeorm';
+import { SuperAdmin } from 'src/super-admin/entities/super-admin.entity';
 
 @Injectable()
 export class AuthService {
@@ -26,7 +24,7 @@ export class AuthService {
   async login(loginDto: { username: string; password: string }) {
     let user: any;
 
-    // Username bo‘yicha barcha rolda qidiramiz
+    // Foydalanuvchini qidirish
     user = await this.adminRepository.findOne({ where: { username: loginDto.username } });
     if (!user) {
       user = await this.teacherRepository.findOne({ where: { username: loginDto.username } });
@@ -42,17 +40,12 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    // Parolni tekshirish
-    if (!user.password) {
-      throw new UnauthorizedException('User has no password set');
-    }
-
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
-    if (!isPasswordValid) {
+    // Parolni tekshirish (oddiy text taqqoslash)
+    if (user.password && user.password !== loginDto.password) {
       throw new UnauthorizedException('Parol noto‘g‘ri');
     }
 
-    // JWT token yaratish
+    // JWT token yaratish (muddatsiz)
     const payload = { id: user.id, username: user.username, role: user.role };
     const accessToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
@@ -62,6 +55,7 @@ export class AuthService {
   }
 
   async logout(userId: number) {
+    // logout faqat xabar qaytaradi
     return { message: `User ${userId} logged out successfully` };
   }
 }
