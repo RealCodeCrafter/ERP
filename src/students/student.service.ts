@@ -154,7 +154,7 @@ export class StudentsService {
 
     const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
 
-    const group = await this.groupRepository.findOne({ where: { id: groupId }, relations: ['course'] });
+    const group = await this.groupRepository.findOne({ where: { id: groupId }, relations: ['course', 'students'] });
     if (!group) {
       throw new NotFoundException(`Group with ID ${groupId} not found`);
     }
@@ -186,7 +186,15 @@ export class StudentsService {
       profile: savedProfile,
     });
 
-    return await this.studentRepository.save(student);
+    const savedStudent = await this.studentRepository.save(student);
+
+    // Guruhga student qo'shilganda statusni yangilash
+    if (group.students.length + 1 >= 15) {
+      group.status = 'active';
+      await this.groupRepository.save(group);
+    }
+
+    return savedStudent;
   }
 
   async updateStudent(id: number, updateStudentDto: UpdateStudentDto): Promise<Student> {
@@ -197,12 +205,19 @@ export class StudentsService {
     if (groupId) {
       const group = await this.groupRepository.findOne({
         where: { id: groupId },
-        relations: ['course'],
+        relations: ['course', 'students'],
       });
       if (!group) {
         throw new NotFoundException(`Group with ID ${groupId} not found`);
       }
-      student.groups = [group];
+      // Agar guruh o'zgartirilsa, yangi guruhga qo'shiladi va status tekshiriladi
+      if (!student.groups.some(g => g.id === groupId)) {
+        student.groups = [group];
+        if (group.students.length + 1 >= 15) {
+          group.status = 'active';
+          await this.groupRepository.save(group);
+        }
+      }
     }
 
     if (username) {
@@ -348,7 +363,7 @@ export class StudentsService {
             year: 'numeric',
           }),
           amount: `${payment.amount.toLocaleString('uz-UZ')} so'm`,
-          status: 'To‘langan', // Faqat paid: true to'lovlar olinadi
+          status: 'To‘ personnellangan', // Faqat paid: true to'lovlar olinadi
           note: `${index + 1}-oy`,
         }));
 
