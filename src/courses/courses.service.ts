@@ -31,9 +31,26 @@ export class CoursesService {
     return this.courseRepository.save(course);
   }
 
-  async getAllCourses(): Promise<Course[]> {
-    return this.courseRepository.find({ relations: ['groups', 'groups.students', 'payments'] });
+   async getAllCourses() {
+    const courses = await this.courseRepository.find({ relations: ['groups', 'groups.students'] });
+
+    return courses.map((course) => {
+      const groupsCount = course.groups.length;
+      const studentsCount = course.groups.reduce(
+        (acc, group) => acc + group.students.length,
+        0,
+      );
+
+      return {
+        id: course.id,
+        name: course.name,
+        description: course.description,
+        groupsCount,
+        studentsCount,
+      };
+    });
   }
+
 
   async getCourseById(id: number): Promise<Course> {
     const course = await this.courseRepository.findOne({ 

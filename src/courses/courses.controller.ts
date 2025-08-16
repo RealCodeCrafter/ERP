@@ -18,7 +18,7 @@ export class CoursesController {
 
   @UseGuards(AuthGuard)
   @Get()
-  async getAllCourses(): Promise<Course[]> {
+  async getAllCourses() {
     return this.coursesService.getAllCourses();
   }
 
