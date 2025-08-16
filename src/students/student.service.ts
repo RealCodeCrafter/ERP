@@ -191,8 +191,10 @@ export class StudentsService {
     // Guruhga student qo'shilganda statusni yangilash
     if (group.students.length + 1 >= 15) {
       group.status = 'active';
-      await this.groupRepository.save(group);
+    } else if (group.students.length + 1 > 0) {
+      group.status = 'planned';
     }
+    await this.groupRepository.save(group);
 
     return savedStudent;
   }
@@ -215,8 +217,10 @@ export class StudentsService {
         student.groups = [group];
         if (group.students.length + 1 >= 15) {
           group.status = 'active';
-          await this.groupRepository.save(group);
+        } else if (group.students.length + 1 > 0) {
+          group.status = 'planned';
         }
+        await this.groupRepository.save(group);
       }
     }
 
@@ -274,6 +278,29 @@ export class StudentsService {
 
   async deleteStudent(id: number): Promise<void> {
     const student = await this.getStudentById(id);
+
+    // Studentning guruhlarini tekshirish va statuslarni yangilash
+    for (const group of student.groups) {
+      const groupWithStudents = await this.groupRepository.findOne({
+        where: { id: group.id },
+        relations: ['students'],
+      });
+
+      if (groupWithStudents) {
+        groupWithStudents.students = groupWithStudents.students.filter(s => s.id !== id);
+
+        if (groupWithStudents.students.length === 0) {
+          groupWithStudents.status = 'completed';
+        } else if (groupWithStudents.students.length < 15) {
+          groupWithStudents.status = 'planned';
+        } else {
+          groupWithStudents.status = 'active';
+        }
+
+        await this.groupRepository.save(groupWithStudents);
+      }
+    }
+
     await this.studentRepository.remove(student);
   }
 
@@ -363,7 +390,7 @@ export class StudentsService {
             year: 'numeric',
           }),
           amount: `${payment.amount.toLocaleString('uz-UZ')} so'm`,
-          status: 'To‘ personnellangan', // Faqat paid: true to'lovlar olinadi
+          status: 'To‘langan',
           note: `${index + 1}-oy`,
         }));
 
