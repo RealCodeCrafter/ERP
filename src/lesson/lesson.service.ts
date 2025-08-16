@@ -197,6 +197,7 @@ export class LessonsService {
     });
   }
 
+
 async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<any> {
   const user = await this.getUserById(userId);
 
@@ -245,7 +246,9 @@ async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<an
       absent: absentCount,
       late: lateCount,
     },
-    date: lesson.lessonDate.toISOString().split('T')[0],
+    date: filteredAttendances.length > 0 
+      ? filteredAttendances[0].createdAt.toISOString().split('T')[0]
+      : lesson.lessonDate.toISOString().split('T')[0],
     exportable: true,
     students: filteredAttendances.map((attendance, index) => ({
       initial: attendance.student.firstName.charAt(0).toUpperCase(),
@@ -253,7 +256,7 @@ async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<an
       phone: attendance.student.phone,
       groupName: lesson.group.name,
       status: attendance.status === 'present' ? 'Hozir' : attendance.status === 'absent' ? 'Yo\'q' : 'Kech',
-      actions: '', 
+      actions: '', // Amallar uchun bo'sh joy (frontendda ishlatiladi)
     })),
   };
 }
