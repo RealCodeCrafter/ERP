@@ -23,6 +23,6 @@ import { Lesson } from 'src/lesson/entities/lesson.entity';
   ],
   controllers: [PaymentController],
   providers: [PaymentService],
-  exports: [TypeOrmModule], // 🔹 PaymentRepository eksport qilinadi
+  exports: [TypeOrmModule],
 })
 export class PaymentModule {}

@@ -230,13 +230,11 @@ async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<an
     ? attendances.filter(attendance => attendance.student.id === user.id)
     : attendances;
 
-  // Statistikani hisoblash
   const totalStudents = filteredAttendances.length;
   const presentCount = filteredAttendances.filter(a => a.status === 'present').length;
   const absentCount = filteredAttendances.filter(a => a.status === 'absent').length;
   const lateCount = filteredAttendances.filter(a => a.status === 'late').length;
 
-  // Natijani kerakli formatda shakllantirish
   return {
     statistics: {
       totalStudents: totalStudents,
@@ -249,6 +247,7 @@ async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<an
       : lesson.lessonDate.toISOString().split('T')[0],
     exportable: true,
     students: filteredAttendances.map((attendance, index) => ({
+      studentId: attendance.student.id,
       studentName: `${attendance.student.firstName} ${attendance.student.lastName}`,
       phone: attendance.student.phone,
       groupName: lesson.group.name,

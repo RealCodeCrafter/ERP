@@ -16,7 +16,7 @@ export class Payment {
 
   @ManyToOne(() => Group, (group) => group.payments, { onDelete: 'CASCADE' })
   group: Group;
-
+   
   @ManyToOne(() => Course, (course) => course.payments, { onDelete: 'CASCADE' })
   course: Course;
 
