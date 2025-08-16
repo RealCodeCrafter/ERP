@@ -46,7 +46,7 @@ export class UpdateGroupDto {
 
   @IsOptional()
   @IsEnum(['active', 'planned', 'completed'])
-  status?: 'active' | 'planned' | 'completed';
+  status?: 'active' | 'completed';
 
   @IsOptional()
   @IsNumber()

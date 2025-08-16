@@ -222,6 +222,7 @@ export class GroupsService {
     if (updateGroupDto.startTime) group.startTime = updateGroupDto.startTime;
     if (updateGroupDto.endTime) group.endTime = updateGroupDto.endTime;
     if (updateGroupDto.daysOfWeek) group.daysOfWeek = updateGroupDto.daysOfWeek;
+    if (updateGroupDto.status) group.status = updateGroupDto.status;
 
     if (updateGroupDto.courseId) {
       const course = await this.courseRepository.findOne({ where: { id: updateGroupDto.courseId } });
