@@ -191,7 +191,8 @@ export class AttendanceService {
 }
 
 async getGroupsWithoutAttendance(date: string) {
-  const dayOfWeek = moment(date).format('dddd'); // Masalan: "Sunday"
+  const dayOfWeek = moment(date).format('dddd');
+  const now = moment(); // hozirgi vaqt
 
   const groups = await this.groupRepository.find({
     where: { status: 'active' },
@@ -202,48 +203,59 @@ async getGroupsWithoutAttendance(date: string) {
 
   for (const group of groups) {
     if (!group.daysOfWeek?.includes(dayOfWeek)) {
-      continue; // jadvalida bu kun bo‘lmasa tashlab ketamiz
+      continue;
     }
 
-    // 🔹 Shu kunga oid barcha darslarni olamiz
+    const groupStart = moment(`${date} ${group.startTime}`, 'YYYY-MM-DD HH:mm');
+    const groupEnd = moment(`${date} ${group.endTime}`, 'YYYY-MM-DD HH:mm');
+
+    // shu kunga tegishli darslarni olish
     const lessons = group.lessons.filter(l =>
       moment(l.lessonDate).isSame(date, 'day'),
     );
 
-    // 🔹 Agar umuman dars yaratilmagan bo‘lsa
-    if (lessons.length === 0) {
-      results.push({
-        groupName: group.name,
-        date,
-        lessonName: 'yaratilmagan',
-        lessonTime: `${group.startTime} - ${group.endTime}`,
-        teacher: group.teacher
-          ? `${group.teacher.firstName} ${group.teacher.lastName}`
-          : null,
-        phone: group.teacher?.phone,
-        reason: 'Lesson not created',
-      });
-      continue;
-    }
-
-    // 🔹 Shu kuni yaratilgan darslarda davomat tekshiramiz
-    for (const lesson of lessons) {
-      const hasAttendance = lesson.attendances?.length > 0;
-
-      if (!hasAttendance) {
+    if (!lessons.length) {
+      // 🔹 dars umuman yaratilmagan, vaqt ham o‘tib bo‘lgan bo‘lsa chiqaramiz
+      if (now.isAfter(groupEnd)) {
         results.push({
           groupName: group.name,
           date,
-          lessonName: lesson.lessonName ?? 'yaratilmagan',
-          lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(
-            lesson.endDate,
-          ).format('HH:mm')}`,
+          lessonName: 'yaratilmagan',
+          lessonTime: `${group.startTime} - ${group.endTime}`,
           teacher: group.teacher
             ? `${group.teacher.firstName} ${group.teacher.lastName}`
             : null,
           phone: group.teacher?.phone,
-          reason: 'Attendance not created',
+          reason: 'Lesson not created',
         });
+      }
+      continue;
+    }
+
+    // 🔹 har bir lessonni tekshiramiz
+    for (const lesson of lessons) {
+      const hasAttendance = lesson.attendances?.length > 0;
+
+      if (!hasAttendance) {
+        const lessonStart = moment(lesson.lessonDate);
+        const lessonEnd = moment(lesson.endDate);
+
+        // faqat tugagan bo‘lsa chiqaramiz
+        if (now.isAfter(lessonEnd)) {
+          results.push({
+            groupName: group.name,
+            date,
+            lessonName: lesson.lessonName ?? 'yaratilmagan',
+            lessonTime: `${moment(lessonStart).format('HH:mm')} - ${moment(
+              lessonEnd,
+            ).format('HH:mm')}`,
+            teacher: group.teacher
+              ? `${group.teacher.firstName} ${group.teacher.lastName}`
+              : null,
+            phone: group.teacher?.phone,
+            reason: 'Attendance not created',
+          });
+        }
       }
     }
   }
