@@ -401,13 +401,12 @@ export class AttendanceService {
 
     const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
 
-    const groups = await this.groupRepository.find({
-      where: {
-        status: 'active',
-        daysOfWeek: Raw(`"daysOfWeek" @> ARRAY['${currentDay}']`),
-      },
-      relations: ['students'],
-    });
+    const groups = await this.groupRepository
+      .createQueryBuilder('group')
+      .where('group.status = :status', { status: 'active' })
+      .andWhere(':currentDay = ANY("group"."daysOfWeek")', { currentDay })
+      .leftJoinAndSelect('group.students', 'students')
+      .getMany();
 
     if (groups.length === 0) {
       return { totalStudents: 0, present: 0, absent: 0, late: 0 };
