@@ -239,12 +239,24 @@ export class GroupsService {
     if (!group) throw new NotFoundException('Active group not found');
     return group.students;
   }
+async getAllGroupsForAdmin(): Promise<Group[]> {
+  return this.groupRepository.find({
+    relations: [
+      'course',
+      'teacher',
+      'students',
+      'lessons',
+      'lessons.attendances',
+      'lessons.attendances.student',
+      'lessons.attendances.teacher',
+      'payments', // agar to‘lovlar ham kerak bo‘lsa
+    ],
+    order: {
+      createdAt: 'DESC',
+    },
+  });
+}
 
-  async getAllGroupsForAdmin(): Promise<Group[]> {
-    return this.groupRepository.find({
-      relations: ['course', 'teacher', 'students'],
-    });
-  }
 
   async searchGroups(name?: string, teacherName?: string): Promise<Group[]> {
     const qb = this.groupRepository
