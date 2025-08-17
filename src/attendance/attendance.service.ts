@@ -13,6 +13,7 @@ import { SuperAdmin } from '../super-admin/entities/super-admin.entity';
 import { SmsService } from '../sms/sms.service';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { Cron } from '@nestjs/schedule';
+import * as moment from 'moment';
 
 @Injectable()
 export class AttendanceService {
@@ -189,36 +190,61 @@ export class AttendanceService {
   return results;
 }
 
-async getGroupsWithoutAttendance(date: any) {
-  const lessons = await this.lessonRepository.find({
-    where: { lessonDate: date },
-    relations: ['group', 'group.teacher'],
-  });
 
-  if (!lessons.length) {
-    return [];
-  }
+async getGroupsWithoutAttendance(date: string) {
+  const dayOfWeek = moment(date).format('dddd'); // Masalan: "Friday"
+
+  // 1. Guruhlarni olish (teacher, lessons, attendances bilan)
+  const groups = await this.groupRepository.find({
+    where: { status: 'active' },
+    relations: ['teacher', 'lessons', 'attendances'],
+  });
 
   const results = [];
 
-  for (const lesson of lessons) {
-    const hasAttendance = await this.attendanceRepository.findOne({
-      where: { lesson: { id: lesson.id } },
-    });
+  for (const group of groups) {
+    if (!group.daysOfWeek?.includes(dayOfWeek)) {
+      continue; // jadvalida bu kun bo‘lmasa tashlab ketamiz
+    }
 
-    if (!hasAttendance) {
+    // 2. Shu sanaga lesson bormi?
+    const lesson = group.lessons.find(l =>
+      moment(l.lessonDate).isSame(date, 'day'),
+    );
+
+    if (!lesson) {
       results.push({
-        groupName: lesson.group.name,
-        date: lesson.lessonDate,
-        teacher: `${lesson.group.teacher.firstName} ${lesson.group.teacher.firstName}`,
-        phone: lesson.group.teacher.phone,
+        groupName: group.name,
+        date,
+        lessonTime: `${group.startTime} - ${group.endTime}`,
+        teacher: group.teacher
+          ? `${group.teacher.firstName} ${group.teacher.lastName}`
+          : null,
+        phone: group.teacher?.phone,
+        reason: 'Lesson not created',
+      });
+      continue;
+    }
+
+    // 3. Attendance yozilganmi?
+    const attendance = lesson.attendances?.length > 0;
+
+    if (!attendance) {
+      results.push({
+        groupName: group.name,
+        date,
+        lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(lesson.endDate).format('HH:mm')}`,
+        teacher: group.teacher
+          ? `${group.teacher.firstName} ${group.teacher.lastName}`
+          : null,
+        phone: group.teacher?.phone,
+        reason: 'Attendance not created',
       });
     }
   }
 
   return results;
 }
-
 
   async remove(id: number) {
     const attendance = await this.findOne(id);
