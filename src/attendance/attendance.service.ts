@@ -195,7 +195,7 @@ async getGroupsWithoutAttendance(date: string) {
 
   const groups = await this.groupRepository.find({
     where: { status: 'active' },
-    relations: ['teacher', 'lessons', 'attendances'],
+    relations: ['teacher', 'lessons', 'lessons.attendances'], // ✅ to‘g‘ri joyi shu
   });
 
   const results = [];
@@ -233,7 +233,9 @@ async getGroupsWithoutAttendance(date: string) {
         groupName: group.name,
         date,
         lessonName: lesson.lessonName ?? 'yaratilmagan',
-        lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(lesson.endDate).format('HH:mm')}`,
+        lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(
+          lesson.endDate,
+        ).format('HH:mm')}`,
         teacher: group.teacher
           ? `${group.teacher.firstName} ${group.teacher.lastName}`
           : null,
