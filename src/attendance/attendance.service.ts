@@ -191,11 +191,11 @@ export class AttendanceService {
 }
 
 async getGroupsWithoutAttendance(date: string) {
-  const dayOfWeek = moment(date).format('dddd'); // Masalan: "Friday"
+  const dayOfWeek = moment(date).format('dddd'); // Masalan: "Sunday"
 
   const groups = await this.groupRepository.find({
     where: { status: 'active' },
-    relations: ['teacher', 'lessons', 'lessons.attendances'], // ✅ to‘g‘ri joyi shu
+    relations: ['teacher', 'lessons', 'lessons.attendances'],
   });
 
   const results = [];
@@ -205,12 +205,13 @@ async getGroupsWithoutAttendance(date: string) {
       continue; // jadvalida bu kun bo‘lmasa tashlab ketamiz
     }
 
-    const lesson = group.lessons.find(l =>
+    // 🔹 Shu kunga oid barcha darslarni olamiz
+    const lessons = group.lessons.filter(l =>
       moment(l.lessonDate).isSame(date, 'day'),
     );
 
-    // 🔹 Lesson topilmagan bo‘lsa
-    if (!lesson) {
+    // 🔹 Agar umuman dars yaratilmagan bo‘lsa
+    if (lessons.length === 0) {
       results.push({
         groupName: group.name,
         date,
@@ -225,23 +226,25 @@ async getGroupsWithoutAttendance(date: string) {
       continue;
     }
 
-    // 🔹 Attendance yozilmagan bo‘lsa
-    const attendance = lesson.attendances?.length > 0;
+    // 🔹 Shu kuni yaratilgan darslarda davomat tekshiramiz
+    for (const lesson of lessons) {
+      const hasAttendance = lesson.attendances?.length > 0;
 
-    if (!attendance) {
-      results.push({
-        groupName: group.name,
-        date,
-        lessonName: lesson.lessonName ?? 'yaratilmagan',
-        lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(
-          lesson.endDate,
-        ).format('HH:mm')}`,
-        teacher: group.teacher
-          ? `${group.teacher.firstName} ${group.teacher.lastName}`
-          : null,
-        phone: group.teacher?.phone,
-        reason: 'Attendance not created',
-      });
+      if (!hasAttendance) {
+        results.push({
+          groupName: group.name,
+          date,
+          lessonName: lesson.lessonName ?? 'yaratilmagan',
+          lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(
+            lesson.endDate,
+          ).format('HH:mm')}`,
+          teacher: group.teacher
+            ? `${group.teacher.firstName} ${group.teacher.lastName}`
+            : null,
+          phone: group.teacher?.phone,
+          reason: 'Attendance not created',
+        });
+      }
     }
   }
 
