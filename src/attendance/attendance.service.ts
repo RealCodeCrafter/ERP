@@ -215,6 +215,12 @@ async getGroupsWithoutAttendance(date: string) {
         continue;
       }
 
+      // Guruhning birinchi darsi yaratilganligini tekshirish
+      if (!group.lessons || group.lessons.length === 0) {
+        console.log(`Guruh ${group.name}: Hali birinchi dars yaratilmagan`);
+        continue;
+      }
+
       const createdAt = moment(group.createdAt).utcOffset('+05:00');
       const groupStart = moment(
         `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
