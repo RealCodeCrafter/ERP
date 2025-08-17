@@ -189,6 +189,37 @@ export class AttendanceService {
   return results;
 }
 
+async getGroupsWithoutAttendance(date: any) {
+  const lessons = await this.lessonRepository.find({
+    where: { lessonDate: date },
+    relations: ['group', 'group.teacher'],
+  });
+
+  if (!lessons.length) {
+    return [];
+  }
+
+  const results = [];
+
+  for (const lesson of lessons) {
+    const hasAttendance = await this.attendanceRepository.findOne({
+      where: { lesson: { id: lesson.id } },
+    });
+
+    if (!hasAttendance) {
+      results.push({
+        groupName: lesson.group.name,
+        date: lesson.lessonDate,
+        teacher: `${lesson.group.teacher.firstName} ${lesson.group.teacher.firstName}`,
+        phone: lesson.group.teacher.phone,
+      });
+    }
+  }
+
+  return results;
+}
+
+
   async remove(id: number) {
     const attendance = await this.findOne(id);
     return this.attendanceRepository.remove(attendance);

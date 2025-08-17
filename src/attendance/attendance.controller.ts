@@ -80,6 +80,19 @@ export class AttendanceController {
   findOne(@Param('id') id: string) {
     return this.attendanceService.findOne(+id);
   }
+
+  @Roles('admin', 'superAdmin')
+@UseGuards(AuthGuard, RolesGuard)
+@Get('missing')
+async getGroupsWithoutAttendance(@Query('date') date: string) {
+  if (!date) {
+    throw new BadRequestException('date query param is required (YYYY-MM-DD)');
+  }
+  return this.attendanceService.getGroupsWithoutAttendance(date);
+}
+
+
+
 @Roles('teacher')
 @UseGuards(AuthGuard, RolesGuard)
 @Patch('/lesson/:lessonId')
