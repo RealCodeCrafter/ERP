@@ -310,38 +310,44 @@ async getGroupsWithoutAttendance(date: string) {
   }
 
   async getAttendanceStatistics(groupId?: number) {
-  const query: any = {};
-  if (groupId) {
-    query.lesson = { group: { id: groupId } };
+    const query: any = {};
+    if (groupId) {
+      query.lesson = { group: { id: groupId } };
+    }
+
+    const attendances = await this.attendanceRepository.find({
+      where: query,
+      relations: ['student', 'lesson', 'lesson.group'],
+    });
+
+    const studentStats = attendances.reduce((acc, curr) => {
+      const studentId = curr.student.id;
+      if (!acc[studentId]) {
+        acc[studentId] = {
+          student: curr.student,
+          present: 0,
+          absent: 0,
+          late: 0,
+        };
+      }
+      if (curr.status === 'present') acc[studentId].present += 1;
+      if (curr.status === 'absent') acc[studentId].absent += 1;
+      if (curr.status === 'late') acc[studentId].late += 1;
+      return acc;
+    }, {});
+
+    const result = Object.values(studentStats)
+      .map((stat: any) => ({
+        student: stat.student,
+        present: stat.present,
+        absent: stat.absent,
+        late: stat.late,
+        total: stat.present + stat.absent + stat.late,
+      }))
+      .sort((a, b) => b.present - a.present);
+
+    return result;
   }
-
-  const attendances = await this.attendanceRepository.find({
-    where: query,
-    relations: ['student', 'lesson', 'lesson.group'],
-  });
-
-  // 🔹 Jami yo‘qlama qilinishi kerak bo‘lgan o‘quvchilar soni
-  const totalAttendances = attendances.length;
-
-  // 🔹 Asl jami o‘quvchilar soni (unique studentlar)
-  const uniqueStudents = new Set(attendances.map(a => a.student.id)).size;
-
-  // 🔹 Statuslarni hisoblash
-  let present = 0, absent = 0, late = 0;
-  for (const a of attendances) {
-    if (a.status === 'present') present++;
-    if (a.status === 'absent') absent++;
-    if (a.status === 'late') late++;
-  }
-
-  return {
-    totalStudents: uniqueStudents, 
-    totalAttendances,                // jami yo‘qlama qilinishi kerak bo‘lgan o‘quvchilar soni
-    present,
-    absent,
-    late,
-  };
-}
 
   @Cron('*/15 * * * *', { name: 'checkAttendanceReminders' })
   async checkAttendanceReminders() {
@@ -488,57 +494,68 @@ async getGroupsWithoutAttendance(date: string) {
       attendances: formattedAttendances,
     };
   }
+async getDailyAttendanceStats(): Promise<{
+  totalStudents: number;       // asl unique studentlar
+  totalAttendances: number;    // jami yo‘qlama qilinishi kerak bo‘lgan
+  present: number;
+  absent: number;
+  late: number;
+}> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  async getDailyAttendanceStats(): Promise<{
-    totalStudents: number;
-    present: number;
-    absent: number;
-    late: number;
-  }> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+  const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
 
-    const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
+  const groups = await this.groupRepository
+    .createQueryBuilder('group')
+    .where('group.status = :status', { status: 'active' })
+    .andWhere(':currentDay = ANY("group"."daysOfWeek")', { currentDay })
+    .leftJoinAndSelect('group.students', 'students')
+    .getMany();
 
-    const groups = await this.groupRepository
-      .createQueryBuilder('group')
-      .where('group.status = :status', { status: 'active' })
-      .andWhere(':currentDay = ANY("group"."daysOfWeek")', { currentDay })
-      .leftJoinAndSelect('group.students', 'students')
-      .getMany();
-
-    if (groups.length === 0) {
-      return { totalStudents: 0, present: 0, absent: 0, late: 0 };
-    }
-
-    let totalStudents = 0;
-    for (const group of groups) {
-      if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
-        totalStudents += group.students.length;
-      }
-    }
-
-    const attendances = await this.attendanceRepository.find({
-      where: {
-        lesson: {
-          group: { id: In(groups.map(g => g.id)) },
-          lessonDate: Between(today, tomorrow),
-        },
-      },
-      relations: ['student', 'lesson', 'lesson.group'],
-    });
-
-    const present = attendances.filter(a => a.status === 'present').length;
-    const absent = attendances.filter(a => a.status === 'absent').length;
-    const late = attendances.filter(a => a.status === 'late').length;
-
-    return {
-      totalStudents,
-      present,
-      absent,
-      late,
-    };
+  if (groups.length === 0) {
+    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0 };
   }
+
+  // 🔹 Jami yo‘qlama qilinishi kerak bo‘lgan studentlar soni (dublikatlari bilan)
+  let totalAttendances = 0;
+  const allStudents: number[] = [];
+
+  for (const group of groups) {
+    if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
+      totalAttendances += group.students.length; // dublikatlari bilan
+      allStudents.push(...group.students.map(s => s.id)); // unique uchun yig‘ib qo‘yamiz
+    }
+  }
+
+  // 🔹 Asl unique studentlar soni
+  const totalStudents = new Set(allStudents).size;
+
+  // 🔹 Attendance yozuvlarini olish
+  const attendances = await this.attendanceRepository.find({
+    where: {
+      lesson: {
+        group: { id: In(groups.map(g => g.id)) },
+        lessonDate: Between(today, tomorrow),
+      },
+    },
+    relations: ['student', 'lesson', 'lesson.group'],
+  });
+
+  // 🔹 Statuslarni hisoblash
+  const present = attendances.filter(a => a.status === 'present').length;
+  const absent = attendances.filter(a => a.status === 'absent').length;
+  const late = attendances.filter(a => a.status === 'late').length;
+
+  return {
+    totalStudents,     // asl unique studentlar
+    totalAttendances,  // dublikatlari bilan jami yo‘qlama
+    present,
+    absent,
+    late,
+  };
+}
+
 }
