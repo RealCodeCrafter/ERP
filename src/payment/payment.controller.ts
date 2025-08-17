@@ -29,7 +29,7 @@ export class PaymentController {
     return this.paymentService.confirmTeacher(id, req.user.id);
   }
 
-  @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin',  'teacher')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('search')
   searchPayments(
@@ -48,7 +48,7 @@ export class PaymentController {
     return this.paymentService.update(id, updatePaymentDto);
   }
 
-  @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin',  'teacher')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('paid')
   findPaidPayments(
@@ -59,7 +59,7 @@ export class PaymentController {
     return this.paymentService.findPaidPayments(studentName, groupId, monthFor);
   }
 
-  @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin',  'teacher')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('unpaid')
   findUnpaidPayments(
@@ -70,7 +70,7 @@ export class PaymentController {
     return this.paymentService.findUnpaidPayments(studentName, groupId, monthFor);
   }
 
-  @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin',  'teacher')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('unpaid-months')
   getUnpaidMonths(
@@ -80,7 +80,7 @@ export class PaymentController {
     return this.paymentService.getUnpaidMonths(studentId, groupId);
   }
 
-  @Roles('admin', 'superAdmin')
+  @Roles('admin', 'superAdmin',  'teacher')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('monthly-income')
   getMonthlyIncome(

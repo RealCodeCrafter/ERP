@@ -128,15 +128,6 @@ export class GroupsService {
     return this.groupRepository.save(toGroup);
   }
 
-  async completeGroup(id: number): Promise<Group> {
-    const group = await this.getGroupById(id);
-    if (group.status === 'completed') {
-      throw new BadRequestException('Group is already completed');
-    }
-    group.status = 'completed';
-    return this.groupRepository.save(group);
-  }
-
   async getGroupById(id: number): Promise<Group> {
     const group = await this.groupRepository.findOne({
       where: { id },

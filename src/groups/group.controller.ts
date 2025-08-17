@@ -119,15 +119,6 @@ export class GroupsController {
     return this.groupsService.deleteGroup(+id);
   }
 
-  
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Put(':id/complete')
-  @Roles('admin', 'superAdmin')
-  completeGroup(@Param('id') id: number): Promise<Group> {
-    return this.groupsService.completeGroup(id);
-  }
-
   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get(':id')
