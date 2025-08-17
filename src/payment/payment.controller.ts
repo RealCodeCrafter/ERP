@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Request, BadRequestException } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -23,15 +23,18 @@ export class PaymentController {
     return this.paymentService.findAll();
   }
 
-  
-  @Roles('admin', 'teacher', 'superAdmin')
+   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
-    @Get('report')
-    getPaymentsByGroupAndStudentName(
-    @Query('groupId') groupId: number,
+  @Get('report')
+  async getPaymentsByGroupAndStudentName(
+    @Query('groupId') groupId: string,
     @Query('studentName') studentName?: string,
   ): Promise<Payment[]> {
-    return this.paymentService.getPaymentsByGroupAndStudentName(groupId, studentName);
+    const groupIdNum = parseInt(groupId, 10);
+    if (isNaN(groupIdNum)) {
+      throw new BadRequestException('groupId must be a valid number');
+    }
+    return this.paymentService.getPaymentsByGroupAndStudentName(groupIdNum, studentName);
   }
 
   @Roles('teacher')

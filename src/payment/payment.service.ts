@@ -171,15 +171,23 @@ export class PaymentService {
     });
   }
 
-   async getPaymentsByGroupAndStudentName(groupId: number, studentName?: string): Promise<Payment[]> {
+  async getPaymentsByGroupAndStudentName(groupId: number, studentName?: string): Promise<Payment[]> {
+    // Guruhni tekshirish
+    const group = await this.groupRepository.findOne({
+      where: { id: groupId, status: 'active' },
+    });
+    if (!group) {
+      throw new NotFoundException(`Active group with ID ${groupId} not found`);
+    }
+
     const query: any = {
-      group: { id: groupId, status: 'active' },
+      group: { id: groupId },
     };
 
-    if (studentName) {
+    if (studentName && studentName.trim() !== '') {
       query.student = [
-        { firstName: ILike(`%${studentName}%`) },
-        { lastName: ILike(`%${studentName}%`) },
+        { firstName: ILike(`%${studentName.trim()}%`) },
+        { lastName: ILike(`%${studentName.trim()}%`) },
       ];
     }
 
