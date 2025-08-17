@@ -219,18 +219,8 @@ async getGroupsWithoutAttendance(date: string) {
         continue;
       }
 
-      // Guruhning boshlanish va tugash vaqtlarini hisoblash
-      const groupStart = moment(
-        `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
-        'YYYY-MM-DD HH:mm',
-      ).utcOffset('+05:00');
-      const groupEnd = moment(
-        `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
-        'YYYY-MM-DD HH:mm',
-      ).utcOffset('+05:00');
-      const createdAt = moment(group.createdAt).utcOffset('+05:00');
-
       // Guruhning birinchi darsi hali boshlanmaganligini tekshirish
+      const createdAt = moment(group.createdAt).utcOffset('+05:00');
       const firstLessonDate = moment(group.createdAt).startOf('day');
       let foundFirstLessonDay = false;
       while (!foundFirstLessonDay && firstLessonDate.isSameOrBefore(targetDate)) {
@@ -243,6 +233,10 @@ async getGroupsWithoutAttendance(date: string) {
       }
 
       // Agar targetDate birinchi dars kunidan oldin bo'lsa yoki birinchi dars kuni bo'lsa lekin createdAt dan oldin bo'lsa
+      const groupStart = moment(
+        `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
+        'YYYY-MM-DD HH:mm',
+      ).utcOffset('+05:00');
       if (
         targetDate.isBefore(firstLessonDate, 'day') ||
         (targetDate.isSame(firstLessonDate, 'day') && groupStart.isSameOrBefore(createdAt))
@@ -256,8 +250,12 @@ async getGroupsWithoutAttendance(date: string) {
         moment(l.lessonDate).isSame(targetDate, 'day'),
       );
 
+      // Agar dars bo'lmasa, guruhning jadvalini tekshiramiz
       if (!lessons.length) {
-        // Dars yaratilmagan va vaqt o'tgan bo'lsa
+        const groupEnd = moment(
+          `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
+          'YYYY-MM-DD HH:mm',
+        ).utcOffset('+05:00');
         if (now.isAfter(groupEnd)) {
           console.log(`Guruh ${group.name}: Dars yaratilmagan, vaqt o'tgan`);
           results.push({
@@ -277,11 +275,19 @@ async getGroupsWithoutAttendance(date: string) {
         continue;
       }
 
-      // Har bir darsni tekshiramiz
+      // Har bir darsni alohida tekshiramiz
       for (const lesson of lessons) {
         const hasAttendance = lesson.attendances?.length > 0;
         const lessonStart = moment(lesson.lessonDate).utcOffset('+05:00');
         const lessonEnd = moment(lesson.endDate).utcOffset('+05:00');
+
+        // Darsning lessonDate createdAt dan oldin bo'lmasligini tekshirish
+        if (lessonStart.isBefore(createdAt)) {
+          console.warn(
+            `Xato: Guruh ${group.name} uchun dars (ID: ${lesson.id}) guruh yaratilishidan oldin (${lesson.lessonDate}) ro'yxatga olingan.`,
+          );
+          continue;
+        }
 
         if (!hasAttendance && now.isAfter(lessonEnd)) {
           console.log(`Guruh ${group.name}: Davomat qilinmagan, dars tugagan`);
@@ -297,9 +303,11 @@ async getGroupsWithoutAttendance(date: string) {
             reason: 'Attendance not created',
           });
         } else if (hasAttendance) {
-          console.log(`Guruh ${group.name}: Davomat qilingan`);
+          console.log(`Guruh ${group.name}: Davomat qilingan (Dars: ${lesson.lessonName})`);
         } else {
-          console.log(`Guruh ${group.name}: Davomat qilinmagan, lekin dars hali tugamagan`);
+          console.log(
+            `Guruh ${group.name}: Davomat qilinmagan, lekin dars hali tugamagan (Dars: ${lesson.lessonName})`,
+          );
         }
       }
     }
