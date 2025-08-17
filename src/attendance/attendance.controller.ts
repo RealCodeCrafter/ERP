@@ -81,21 +81,21 @@ export class AttendanceController {
     return this.attendanceService.findOne(+id);
   }
 
-   @Roles('teacher')
+  @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)
-  @Patch(':attendanceId')
-  update(@Req() req: any, @Param('attendanceId') attendanceId: string, @Body() updateAttendanceDto: UpdateAttendanceDto) {
+  @Patch(':lessonId')
+  update(@Req() req: any, @Param('lessonId') lessonId: string, @Body() updateAttendanceDto: UpdateAttendanceDto) {
     const teacherId = Number(req.user.id);
     if (isNaN(teacherId)) {
       throw new BadRequestException('Invalid teacher ID in token');
     }
-    const id = Number(attendanceId);
+    const id = Number(lessonId);
     if (isNaN(id)) {
-      throw new BadRequestException('Invalid attendance ID');
+      throw new BadRequestException('Invalid lesson ID');
     }
     return this.attendanceService.update(id, updateAttendanceDto, teacherId);
   }
-  
+
   @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)
   @Delete(':id')

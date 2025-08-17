@@ -1,7 +1,7 @@
-import { IsNotEmpty, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsEnum, IsArray } from 'class-validator';
 
 export class UpdateAttendanceDto {
   @IsNotEmpty()
-  @IsEnum(['present', 'absent', 'late'])
-  status: 'present' | 'absent' | 'late';
+  @IsArray()
+  attendances: { studentId: number; status: 'present' | 'absent' | 'late' }[];
 }
