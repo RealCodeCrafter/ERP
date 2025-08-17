@@ -59,16 +59,14 @@ export class PaymentService {
       throw new BadRequestException('monthFor must be in YYYY-MM format');
     }
 
-    const paid = amount >= group.price;
-
     const payment = this.paymentRepository.create({
       amount,
       student,
       group,
       course,
       adminStatus: 'accepted',
-      teacherStatus: null,
-      paid,
+      teacherStatus: 'pending',
+      paid: false,
       monthFor,
     });
 
@@ -318,7 +316,7 @@ export class PaymentService {
 
     for (const student of students) {
       for (const group of student.groups) {
-        if (group.status !== 'active') continue; // Faqat active guruhlar uchun
+        if (group.status !== 'active') continue;
         const firstLessonDate = await this.getFirstLessonDate(group.id);
         if (!firstLessonDate) continue;
 
