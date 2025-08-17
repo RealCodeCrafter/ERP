@@ -132,56 +132,58 @@ export class AttendanceService {
     return attendance;
   }
 
-   async update(lessonId: number, updateAttendanceDto: UpdateAttendanceDto, teacherId: number) {
-    const teacher = await this.teacherRepository.findOne({ where: { id: teacherId } });
-    if (!teacher) {
-      throw new NotFoundException('Teacher not found');
-    }
-
-    const lesson = await this.lessonRepository.findOne({
-      where: { id: lessonId },
-      relations: ['group', 'group.teacher'],
-    });
-    if (!lesson) {
-      throw new NotFoundException('Lesson not found');
-    }
-
-    if (lesson.group.teacher.id !== teacherId) {
-      throw new ForbiddenException('You can only update attendance for your own group');
-    }
-
-    const results = [];
-    for (const attendanceDto of updateAttendanceDto.attendances) {
-      const student = await this.studentRepository.findOne({ where: { id: attendanceDto.studentId } });
-      if (!student) {
-        throw new NotFoundException(`Student with ID ${attendanceDto.studentId} not found`);
-      }
-
-      if (!['present', 'absent', 'late'].includes(attendanceDto.status)) {
-        throw new BadRequestException(`Invalid status for student ID ${attendanceDto.studentId}`);
-      }
-
-      const existingAttendance = await this.attendanceRepository.findOne({
-        where: {
-          student: { id: attendanceDto.studentId },
-          lesson: { id: lessonId },
-        },
-        relations: ['lesson', 'lesson.group', 'lesson.group.teacher'],
-      });
-
-      if (!existingAttendance) {
-        throw new NotFoundException(
-          `Attendance for student ID ${attendanceDto.studentId} and lesson ID ${lessonId} not found`,
-        );
-      }
-
-      existingAttendance.status = attendanceDto.status;
-      const updatedAttendance = await this.attendanceRepository.save(existingAttendance);
-      results.push(updatedAttendance);
-    }
-
-    return results;
+  async update(attendanceId: number, updateAttendanceDto: UpdateAttendanceDto, teacherId: number) {
+  const teacher = await this.teacherRepository.findOne({ where: { id: teacherId } });
+  if (!teacher) {
+    throw new NotFoundException('Teacher not found');
   }
+
+  const attendance = await this.attendanceRepository.findOne({
+    where: { id: attendanceId },
+    relations: ['lesson', 'lesson.group', 'lesson.group.teacher'],
+  });
+  if (!attendance) {
+    throw new NotFoundException(`Attendance with ID ${attendanceId} not found`);
+  }
+
+  if (attendance.lesson.group.teacher.id !== teacherId) {
+    throw new ForbiddenException('You can only update attendance for your own group');
+  }
+
+  const results = [];
+  for (const aDto of updateAttendanceDto.attendances) {
+    const student = await this.studentRepository.findOne({ where: { id: aDto.studentId } });
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${aDto.studentId} not found`);
+    }
+
+    if (!['present', 'absent', 'late'].includes(aDto.status)) {
+      throw new BadRequestException(`Invalid status for student ID ${aDto.studentId}`);
+    }
+
+    const studentAttendance = await this.attendanceRepository.findOne({
+      where: {
+        id: attendanceId, // shu yo‘qlama
+        student: { id: aDto.studentId },
+      },
+      relations: ['student', 'lesson'],
+    });
+
+    if (!studentAttendance) {
+      throw new NotFoundException(
+        `Attendance record not found for student ID ${aDto.studentId} in attendance ID ${attendanceId}`,
+      );
+    }
+
+    studentAttendance.status = aDto.status;
+    studentAttendance.teacher = teacher;
+
+    const updated = await this.attendanceRepository.save(studentAttendance);
+    results.push(updated);
+  }
+
+  return results;
+}
 
   async remove(id: number) {
     const attendance = await this.findOne(id);
