@@ -1,6 +1,6 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, Between } from 'typeorm';
 import { Teacher } from './entities/teacher.entity';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
@@ -103,7 +103,6 @@ export class TeachersService {
       Sunday: 'Yakshanba',
     };
 
-    // Guruhlar ma'lumotlarini formatlash
     const groups = teacher.groups.map(group => ({
       name: group.name,
       courseName: group.course.name,
@@ -224,5 +223,108 @@ export class TeachersService {
         presentCount,
       };
     });
+  }
+
+  async getTeacherDashboardStats(teacherId: number): Promise<{
+    totalGroups: number;
+    newGroupsLastWeek: number;
+    activeGroups: number;
+    ongoingLessons: number;
+    totalLessons: number;
+    lessonsThisMonth: number;
+  }> {
+    const teacher = await this.teacherRepository.findOne({
+      where: { id: teacherId },
+      relations: ['groups', 'groups.lessons'],
+    });
+    if (!teacher) {
+      throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
+    }
+
+    const totalGroups = teacher.groups.length;
+    const activeGroups = teacher.groups.filter(group => group.status === 'active').length;
+
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    const newGroupsLastWeek = teacher.groups.filter(
+      group => group.createdAt && group.createdAt >= lastWeek,
+    ).length;
+
+    const now = new Date();
+    const ongoingLessons = teacher.groups.reduce((count, group) => {
+      const lessonsToday = group.lessons?.filter(lesson => {
+        const lessonDate = new Date(lesson.lessonDate);
+        return (
+          lessonDate.toDateString() === now.toDateString() &&
+          group.startTime &&
+          group.endTime &&
+          now >= new Date(`${lessonDate.toISOString().split('T')[0]}T${group.startTime}:00`) &&
+          now <= new Date(`${lessonDate.toISOString().split('T')[0]}T${group.endTime}:00`)
+        );
+      }).length || 0;
+      return count + lessonsToday;
+    }, 0);
+
+    const totalLessons = teacher.groups.reduce(
+      (count, group) => count + (group.lessons?.length || 0),
+      0,
+    );
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lessonsThisMonth = teacher.groups.reduce((count, group) => {
+      const lessonsInMonth = group.lessons?.filter(
+        lesson => lesson.lessonDate >= startOfMonth && lesson.lessonDate <= now,
+      ).length || 0;
+      return count + lessonsInMonth;
+    }, 0);
+
+    return {
+      totalGroups,
+      newGroupsLastWeek,
+      activeGroups,
+      ongoingLessons,
+      totalLessons,
+      lessonsThisMonth,
+    };
+  }
+
+  async searchTeacherGroupsByName(
+    teacherId: number,
+    groupName?: string,
+  ): Promise<any[]> {
+    const teacher = await this.teacherRepository.findOne({
+      where: { id: teacherId },
+      relations: ['groups', 'groups.students', 'groups.lessons'],
+    });
+    if (!teacher) {
+      throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
+    }
+
+    const dayTranslations: { [key: string]: string } = {
+      Monday: 'Dushanba',
+      Tuesday: 'Seshanba',
+      Wednesday: 'Chorshanba',
+      Thursday: 'Payshanba',
+      Friday: 'Juma',
+      Saturday: 'Shanba',
+      Sunday: 'Yakshanba',
+    };
+
+    let groups = teacher.groups;
+    if (groupName && groupName.trim() !== '') {
+      groups = groups.filter(group =>
+        group.name.toLowerCase().includes(groupName.toLowerCase()),
+      );
+    }
+
+    return groups.map(group => ({
+      name: group.name,
+      daysOfWeek: group.daysOfWeek
+        ? group.daysOfWeek.map(day => dayTranslations[day]).join('\n')
+        : 'N/A',
+      time: group.startTime && group.endTime ? `${group.startTime} - ${group.endTime}` : 'N/A',
+      studentCount: group.students?.length || 0,
+      lessonCount: group.lessons?.length || 0,
+    }));
   }
 }

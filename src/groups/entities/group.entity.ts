@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, ManyToMany, JoinTable, OneToMany, CreateDateColumn } from 'typeorm';
 import { Course } from '../../courses/entities/course.entity';
 import { Student } from '../../students/entities/student.entity';
 import { Teacher } from '../../teacher/entities/teacher.entity';
@@ -28,6 +28,9 @@ export class Group {
 
   @Column({ type: 'enum', enum: ['active', 'completed', 'planned'], default: 'active' })
   status: 'active' | 'completed';
+
+  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
 
   @ManyToOne(() => Course, (course) => course.groups, { onDelete: 'CASCADE' })
   course: Course;
