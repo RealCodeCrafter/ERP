@@ -335,7 +335,7 @@ async getGroupsWithoutAttendance(date: string) {
   }
 
   return {
-    totalStudents: uniqueStudents,   // asl o‘quvchilar soni
+    totalStudents: uniqueStudents, 
     totalAttendances,                // jami yo‘qlama qilinishi kerak bo‘lgan o‘quvchilar soni
     present,
     absent,
