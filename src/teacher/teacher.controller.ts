@@ -8,21 +8,6 @@ import { AuthGuard, Roles, RolesGuard } from '../auth/auth.guard';
 @Controller('teachers')
 export class TeachersController {
   constructor(private readonly teachersService: TeachersService) {}
-
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Post()
-  async createTeacher(@Body() createTeacherDto: CreateTeacherDto): Promise<Teacher> {
-    return this.teachersService.createTeacher(createTeacherDto);
-  }
-
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get()
-  async getAllTeachers(@Query('groupId') groupId: number): Promise<Teacher[]> {
-    return this.teachersService.getAllTeachers(groupId);
-  }
-
   
   @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)
@@ -38,6 +23,20 @@ export class TeachersController {
   async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
     const teacherId = req.user.id
     return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
+  }
+
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Post()
+  async createTeacher(@Body() createTeacherDto: CreateTeacherDto): Promise<Teacher> {
+    return this.teachersService.createTeacher(createTeacherDto);
+  }
+
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get()
+  async getAllTeachers(@Query('groupId') groupId: number): Promise<Teacher[]> {
+    return this.teachersService.getAllTeachers(groupId);
   }
 
   @Roles('admin', 'teacher', 'superAdmin')
