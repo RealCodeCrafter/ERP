@@ -190,14 +190,14 @@ export class AttendanceService {
   return results;
 }
 
-
 async getGroupsWithoutAttendance(date: string) {
   const dayOfWeek = moment(date).format('dddd'); // Masalan: "Friday"
+  const now = moment(); // hozirgi vaqt
 
-  // 1. Guruhlarni olish (teacher, lessons, attendances bilan)
+  // 1. Guruhlarni olish (teacher, lessons bilan)
   const groups = await this.groupRepository.find({
     where: { status: 'active' },
-    relations: ['teacher', 'lessons', 'attendances'],
+    relations: ['teacher', 'lessons', 'lessons.attendances'],
   });
 
   const results = [];
@@ -205,6 +205,15 @@ async getGroupsWithoutAttendance(date: string) {
   for (const group of groups) {
     if (!group.daysOfWeek?.includes(dayOfWeek)) {
       continue; // jadvalida bu kun bo‘lmasa tashlab ketamiz
+    }
+
+    // Guruhning start/end vaqtlarini shu sanaga qo‘shib momentga aylantiramiz
+    const groupStart = moment(`${date} ${group.startTime}`, 'YYYY-MM-DD HH:mm');
+    const groupEnd = moment(`${date} ${group.endTime}`, 'YYYY-MM-DD HH:mm');
+
+    // Agar hozir dars tugamagan bo‘lsa → yo‘qlama qatoriga qo‘shmaymiz
+    if (now.isBefore(groupEnd)) {
+      continue;
     }
 
     // 2. Shu sanaga lesson bormi?
@@ -227,13 +236,15 @@ async getGroupsWithoutAttendance(date: string) {
     }
 
     // 3. Attendance yozilganmi?
-    const attendance = lesson.attendances?.length > 0;
+    const attendanceExists = lesson.attendances?.length > 0;
 
-    if (!attendance) {
+    if (!attendanceExists) {
       results.push({
         groupName: group.name,
         date,
-        lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(lesson.endDate).format('HH:mm')}`,
+        lessonTime: `${moment(lesson.lessonDate).format('HH:mm')} - ${moment(
+          lesson.endDate,
+        ).format('HH:mm')}`,
         teacher: group.teacher
           ? `${group.teacher.firstName} ${group.teacher.lastName}`
           : null,
@@ -245,6 +256,7 @@ async getGroupsWithoutAttendance(date: string) {
 
   return results;
 }
+
 
   async remove(id: number) {
     const attendance = await this.findOne(id);
