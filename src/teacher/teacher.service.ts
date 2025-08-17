@@ -236,10 +236,8 @@ export class TeachersService {
     totalLessons: number;
     lessonsThisMonth: number;
   }> {
-    if (isNaN(teacherId)) {
-      throw new BadRequestException('Invalid teacher ID');
-    }
 
+    
     const teacher = await this.teacherRepository.findOne({
       where: { id: teacherId },
       relations: ['groups', 'groups.lessons'],
