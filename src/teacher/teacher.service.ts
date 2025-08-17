@@ -330,7 +330,7 @@ export class TeachersService {
     return groups.map(group => ({
       name: group.name,
       daysOfWeek: group.daysOfWeek
-        ? group.daysOfWeek.map(day => dayTranslations[day]).join('\n')
+        ? group.daysOfWeek.map(day => dayTranslations[day]).join(', ')
         : 'N/A',
       time: group.startTime && group.endTime ? `${group.startTime} - ${group.endTime}` : 'N/A',
       studentCount: group.students?.length || 0,
