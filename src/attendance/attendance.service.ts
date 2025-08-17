@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository, ILike, In } from 'typeorm';
+import { Between, Repository, ILike, In, Raw } from 'typeorm';
 import { Attendance } from './entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -327,7 +327,7 @@ export class AttendanceService {
     date?: string,
     period?: 'daily' | 'weekly' | 'monthly',
     studentName?: string,
-  ): Promise<{ message: string; count: number; attendances: any[] }> {
+  ): Promise<{ attendances: any[] }> {
     const group = await this.groupRepository.findOne({ where: { id: groupId, status: 'active' } });
     if (!group) {
       throw new NotFoundException(`Active group with ID ${groupId} not found`);
@@ -337,7 +337,6 @@ export class AttendanceService {
       lesson: { group: { id: groupId } },
     };
 
-    // Sana bo'yicha filtr
     if (date && period) {
       const startDate = new Date(date);
       if (isNaN(startDate.getTime())) {
@@ -373,8 +372,7 @@ export class AttendanceService {
     });
 
     const formattedAttendances = attendances.map((attendance) => ({
-      firstName: attendance.student.firstName,
-      lastName: attendance.student.lastName,
+      student: `${attendance.student.firstName} ${attendance.student.lastName}`,
       group: attendance.lesson.group.name,
       course: attendance.lesson.group.course.name,
       time: attendance.lesson.lessonDate
@@ -385,8 +383,6 @@ export class AttendanceService {
     }));
 
     return {
-      message: `Yo'qlama ma'lumotlari\nTanlangan sanada ${formattedAttendances.length} ta yozuv topildi`,
-      count: formattedAttendances.length,
       attendances: formattedAttendances,
     };
   }
@@ -406,10 +402,11 @@ export class AttendanceService {
 
     const query: any = {
       status: 'active',
-      daysOfWeek: ILike(`%${currentDay}%`),
     };
     if (groupId) {
       query.id = groupId;
+    } else {
+      query.daysOfWeek = Raw(`"daysOfWeek" @> ARRAY['${currentDay}']`);
     }
 
     const groups = await this.groupRepository.find({
@@ -423,7 +420,9 @@ export class AttendanceService {
 
     let totalStudents = 0;
     for (const group of groups) {
-      totalStudents += group.students.length;
+      if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
+        totalStudents += group.students.length;
+      }
     }
 
     const attendances = await this.attendanceRepository.find({

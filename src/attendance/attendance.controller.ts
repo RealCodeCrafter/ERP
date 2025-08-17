@@ -34,7 +34,7 @@ export class AttendanceController {
   
   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
-  @Get('report')
+  @Get('search/attendance')
   async getAttendanceReport(
     @Query('groupId') groupId: string,
     @Query('date') date?: string,
@@ -47,8 +47,8 @@ export class AttendanceController {
     }
     return this.attendanceService.getAttendanceReport(groupIdNum, date, period, studentName);
   }
-
-  @Roles('admin', 'superAdmin')
+  
+@Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get('daily-stats')
   async getDailyAttendanceStats(@Query('groupId') groupId?: string) {
