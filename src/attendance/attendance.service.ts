@@ -310,44 +310,38 @@ async getGroupsWithoutAttendance(date: string) {
   }
 
   async getAttendanceStatistics(groupId?: number) {
-    const query: any = {};
-    if (groupId) {
-      query.lesson = { group: { id: groupId } };
-    }
-
-    const attendances = await this.attendanceRepository.find({
-      where: query,
-      relations: ['student', 'lesson', 'lesson.group'],
-    });
-
-    const studentStats = attendances.reduce((acc, curr) => {
-      const studentId = curr.student.id;
-      if (!acc[studentId]) {
-        acc[studentId] = {
-          student: curr.student,
-          present: 0,
-          absent: 0,
-          late: 0,
-        };
-      }
-      if (curr.status === 'present') acc[studentId].present += 1;
-      if (curr.status === 'absent') acc[studentId].absent += 1;
-      if (curr.status === 'late') acc[studentId].late += 1;
-      return acc;
-    }, {});
-
-    const result = Object.values(studentStats)
-      .map((stat: any) => ({
-        student: stat.student,
-        present: stat.present,
-        absent: stat.absent,
-        late: stat.late,
-        total: stat.present + stat.absent + stat.late,
-      }))
-      .sort((a, b) => b.present - a.present);
-
-    return result;
+  const query: any = {};
+  if (groupId) {
+    query.lesson = { group: { id: groupId } };
   }
+
+  const attendances = await this.attendanceRepository.find({
+    where: query,
+    relations: ['student', 'lesson', 'lesson.group'],
+  });
+
+  // 🔹 Jami yo‘qlama qilinishi kerak bo‘lgan o‘quvchilar soni
+  const totalAttendances = attendances.length;
+
+  // 🔹 Asl jami o‘quvchilar soni (unique studentlar)
+  const uniqueStudents = new Set(attendances.map(a => a.student.id)).size;
+
+  // 🔹 Statuslarni hisoblash
+  let present = 0, absent = 0, late = 0;
+  for (const a of attendances) {
+    if (a.status === 'present') present++;
+    if (a.status === 'absent') absent++;
+    if (a.status === 'late') late++;
+  }
+
+  return {
+    totalStudents: uniqueStudents,   // asl o‘quvchilar soni
+    totalAttendances,                // jami yo‘qlama qilinishi kerak bo‘lgan o‘quvchilar soni
+    present,
+    absent,
+    late,
+  };
+}
 
   @Cron('*/15 * * * *', { name: 'checkAttendanceReminders' })
   async checkAttendanceReminders() {
