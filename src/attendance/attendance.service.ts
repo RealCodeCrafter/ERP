@@ -372,6 +372,7 @@ export class AttendanceService {
     });
 
     const formattedAttendances = attendances.map((attendance) => ({
+      studentId: attendance.student.id,
       student: `${attendance.student.firstName} ${attendance.student.lastName}`,
       group: attendance.lesson.group.name,
       course: attendance.lesson.group.course.name,
@@ -387,7 +388,7 @@ export class AttendanceService {
     };
   }
 
-  async getDailyAttendanceStats(groupId?: number): Promise<{
+  async getDailyAttendanceStats(): Promise<{
     totalStudents: number;
     present: number;
     absent: number;
@@ -400,17 +401,11 @@ export class AttendanceService {
 
     const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
 
-    const query: any = {
-      status: 'active',
-    };
-    if (groupId) {
-      query.id = groupId;
-    } else {
-      query.daysOfWeek = Raw(`"daysOfWeek" @> ARRAY['${currentDay}']`);
-    }
-
     const groups = await this.groupRepository.find({
-      where: query,
+      where: {
+        status: 'active',
+        daysOfWeek: Raw(`"daysOfWeek" @> ARRAY['${currentDay}']`),
+      },
       relations: ['students'],
     });
 
@@ -428,7 +423,7 @@ export class AttendanceService {
     const attendances = await this.attendanceRepository.find({
       where: {
         lesson: {
-          group: { id: groupId ? groupId : In(groups.map(g => g.id)) },
+          group: { id: In(groups.map(g => g.id)) },
           lessonDate: Between(today, tomorrow),
         },
       },
