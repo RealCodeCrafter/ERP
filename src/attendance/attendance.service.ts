@@ -191,8 +191,9 @@ export class AttendanceService {
 }
 
 async getGroupsWithoutAttendance(date: string) {
-  const dayOfWeek = moment(date).format('dddd');
+  const dayOfWeek = moment(date, 'YYYY-MM-DD').format('dddd'); 
   const now = moment(); // hozirgi vaqt
+  const targetDate = moment(date, 'YYYY-MM-DD'); // faqat shu sanani olish
 
   const groups = await this.groupRepository.find({
     where: { status: 'active' },
@@ -206,12 +207,18 @@ async getGroupsWithoutAttendance(date: string) {
       continue;
     }
 
-    const groupStart = moment(`${date} ${group.startTime}`, 'YYYY-MM-DD HH:mm');
-    const groupEnd = moment(`${date} ${group.endTime}`, 'YYYY-MM-DD HH:mm');
+    const groupStart = moment(
+      `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
+      'YYYY-MM-DD HH:mm',
+    );
+    const groupEnd = moment(
+      `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
+      'YYYY-MM-DD HH:mm',
+    );
 
     // shu kunga tegishli darslarni olish
     const lessons = group.lessons.filter(l =>
-      moment(l.lessonDate).isSame(date, 'day'),
+      moment(l.lessonDate).isSame(targetDate, 'day'),
     );
 
     if (!lessons.length) {
@@ -219,7 +226,7 @@ async getGroupsWithoutAttendance(date: string) {
       if (now.isAfter(groupEnd)) {
         results.push({
           groupName: group.name,
-          date,
+          date: targetDate.format('YYYY-MM-DD'), // ✅ format to‘g‘ri
           lessonName: 'yaratilmagan',
           lessonTime: `${group.startTime} - ${group.endTime}`,
           teacher: group.teacher
@@ -244,11 +251,11 @@ async getGroupsWithoutAttendance(date: string) {
         if (now.isAfter(lessonEnd)) {
           results.push({
             groupName: group.name,
-            date,
+            date: targetDate.format('YYYY-MM-DD'), // ✅ format to‘g‘ri
             lessonName: lesson.lessonName ?? 'yaratilmagan',
-            lessonTime: `${moment(lessonStart).format('HH:mm')} - ${moment(
-              lessonEnd,
-            ).format('HH:mm')}`,
+            lessonTime: `${lessonStart.format('HH:mm')} - ${lessonEnd.format(
+              'HH:mm',
+            )}`,
             teacher: group.teacher
               ? `${group.teacher.firstName} ${group.teacher.lastName}`
               : null,
