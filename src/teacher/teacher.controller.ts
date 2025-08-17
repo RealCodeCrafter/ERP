@@ -41,7 +41,7 @@ export class TeachersController {
   @UseGuards(AuthGuard, RolesGuard)
   @Get('dashboard')
   async getTeacherDashboardStats(@Req() req: any) {
-    const teacherId = req.user.id
+    const teacherId = req.payload.id
     return this.teachersService.getTeacherDashboardStats(teacherId);
   }
 
@@ -49,7 +49,7 @@ export class TeachersController {
   @UseGuards(AuthGuard, RolesGuard)
   @Get('search/groups')
   async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
-    const teacherId = req.user.id
+    const teacherId = req.payload.id
     return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
   }
 
