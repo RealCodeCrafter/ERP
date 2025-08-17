@@ -1,7 +1,20 @@
-import { IsNotEmpty, IsNumber, IsEnum, IsArray } from 'class-validator';
+import { IsNotEmpty, IsEnum, IsNumber, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class SingleAttendanceUpdateDto {
+  @IsNotEmpty()
+  @IsNumber()
+  studentId: number;
+
+  @IsNotEmpty()
+  @IsEnum(['present', 'absent', 'late'])
+  status: 'present' | 'absent' | 'late';
+}
 
 export class UpdateAttendanceDto {
   @IsNotEmpty()
   @IsArray()
-  attendances: { studentId: number; status: 'present' | 'absent' | 'late' }[];
+  @ValidateNested({ each: true })
+  @Type(() => SingleAttendanceUpdateDto)
+  attendances: SingleAttendanceUpdateDto[];
 }

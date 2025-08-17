@@ -132,21 +132,25 @@ export class AttendanceService {
     return attendance;
   }
 
-  async update(attendanceId: number, updateAttendanceDto: UpdateAttendanceDto, teacherId: number) {
+  async bulkUpdateByLesson(
+  lessonId: number,
+  updateAttendanceDto: UpdateAttendanceDto,
+  teacherId: number,
+) {
   const teacher = await this.teacherRepository.findOne({ where: { id: teacherId } });
   if (!teacher) {
     throw new NotFoundException('Teacher not found');
   }
 
-  const attendance = await this.attendanceRepository.findOne({
-    where: { id: attendanceId },
-    relations: ['lesson', 'lesson.group', 'lesson.group.teacher'],
+  const lesson = await this.lessonRepository.findOne({
+    where: { id: lessonId },
+    relations: ['group', 'group.teacher'],
   });
-  if (!attendance) {
-    throw new NotFoundException(`Attendance with ID ${attendanceId} not found`);
+  if (!lesson) {
+    throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
   }
 
-  if (attendance.lesson.group.teacher.id !== teacherId) {
+  if (lesson.group.teacher.id !== teacherId) {
     throw new ForbiddenException('You can only update attendance for your own group');
   }
 
@@ -163,7 +167,7 @@ export class AttendanceService {
 
     const studentAttendance = await this.attendanceRepository.findOne({
       where: {
-        id: attendanceId, // shu yo‘qlama
+        lesson: { id: lessonId },
         student: { id: aDto.studentId },
       },
       relations: ['student', 'lesson'],
@@ -171,7 +175,7 @@ export class AttendanceService {
 
     if (!studentAttendance) {
       throw new NotFoundException(
-        `Attendance record not found for student ID ${aDto.studentId} in attendance ID ${attendanceId}`,
+        `Attendance record not found for student ID ${aDto.studentId} in lesson ID ${lessonId}`,
       );
     }
 
