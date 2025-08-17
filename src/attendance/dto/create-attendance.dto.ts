@@ -9,8 +9,3 @@ export class CreateAttendanceDto {
   @IsArray()
   attendances: { studentId: number; status: 'present' | 'absent' | 'late' }[];
 }
-
-export class UpdateAttendanceDto {
-  @IsEnum(['present', 'absent', 'late'])
-  status?: string;
-}
