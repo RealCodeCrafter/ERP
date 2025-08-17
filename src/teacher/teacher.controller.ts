@@ -41,7 +41,10 @@ export class TeachersController {
   @UseGuards(AuthGuard, RolesGuard)
   @Get('dashboard')
   async getTeacherDashboardStats(@Req() req: any) {
-    const teacherId = req.payload.id
+    const teacherId = parseInt(req.user.id, 10); // JWT tokendan id olinadi
+    if (isNaN(teacherId)) {
+      throw new BadRequestException('Invalid teacher ID in token');
+    }
     return this.teachersService.getTeacherDashboardStats(teacherId);
   }
 
@@ -49,7 +52,10 @@ export class TeachersController {
   @UseGuards(AuthGuard, RolesGuard)
   @Get('search/groups')
   async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
-    const teacherId = req.payload.id
+    const teacherId = parseInt(req.user.id, 10); // JWT tokendan id olinadi
+    if (isNaN(teacherId)) {
+      throw new BadRequestException('Invalid teacher ID in token');
+    }
     return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
   }
 
