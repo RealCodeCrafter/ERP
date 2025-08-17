@@ -228,7 +228,7 @@ export class TeachersService {
     });
   }
 
-  async getTeacherDashboardStats(teacherId: number): Promise<{
+    async getTeacherDashboardStats(teacherId: number): Promise<{
     totalGroups: number;
     newGroupsLastWeek: number;
     activeGroups: number;
@@ -236,14 +236,17 @@ export class TeachersService {
     totalLessons: number;
     lessonsThisMonth: number;
   }> {
-
+    const id = Number(teacherId); // teacherId ni raqamga aylantirish
+    if (isNaN(id)) {
+      throw new BadRequestException('Invalid teacher ID');
+    }
 
     const teacher = await this.teacherRepository.findOne({
-      where: { id: teacherId },
+      where: { id },
       relations: ['groups', 'groups.lessons'],
     });
     if (!teacher) {
-      throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
+      throw new NotFoundException(`Teacher with ID ${id} not found`);
     }
 
     const totalGroups = teacher.groups.length;
