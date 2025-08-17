@@ -204,6 +204,7 @@ export class AttendanceService {
     const results = [];
 
     for (const group of groups) {
+      // Dars kuni mos kelmasa, xato darslarni log qilish
       if (!group.daysOfWeek?.includes(dayOfWeek)) {
         const invalidLessons = group.lessons.filter(l =>
           moment(l.lessonDate).isSame(targetDate, 'day'),
@@ -222,31 +223,7 @@ export class AttendanceService {
         continue;
       }
 
-      const createdAt = moment(group.createdAt).utcOffset('+05:00');
-      const groupStart = moment(
-        `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
-        'YYYY-MM-DD HH:mm',
-      ).utcOffset('+05:00');
-
-      const firstLessonDate = moment(group.createdAt).startOf('day');
-      let foundFirstLessonDay = false;
-      while (!foundFirstLessonDay && firstLessonDate.isSameOrBefore(targetDate)) {
-        const currentDayOfWeek = firstLessonDate.format('dddd');
-        if (group.daysOfWeek.includes(currentDayOfWeek)) {
-          foundFirstLessonDay = true;
-        } else {
-          firstLessonDate.add(1, 'day');
-        }
-      }
-
-      if (
-        targetDate.isBefore(firstLessonDate, 'day') ||
-        (targetDate.isSame(firstLessonDate, 'day') && groupStart.isBefore(createdAt))
-      ) {
-        console.log(`Guruh ${group.name}: Hali birinchi dars boshlanmagan`);
-        continue;
-      }
-
+      // Darslarni targetDate uchun filtrlash
       const lessons = group.lessons.filter(l =>
         moment(l.lessonDate).isSame(targetDate, 'day'),
       );
@@ -280,7 +257,8 @@ export class AttendanceService {
         const lessonStart = moment(lesson.lessonDate).utcOffset('+05:00');
         const lessonEnd = moment(lesson.endDate).utcOffset('+05:00');
 
-        if (lessonStart.isBefore(createdAt)) {
+        // Dars guruh yaratilishidan oldin ro'yxatga olingan bo'lsa, xato log qilish
+        if (lessonStart.isBefore(moment(group.createdAt).utcOffset('+05:00'))) {
           console.warn(
             `Xato: Guruh ${group.name} uchun dars (ID: ${lesson.id}) guruh yaratilishidan oldin (${lesson.lessonDate}) ro'yxatga olingan.`,
           );
@@ -312,7 +290,6 @@ export class AttendanceService {
 
     return results;
   }
-  
   async remove(id: number) {
     const attendance = await this.findOne(id);
     return this.attendanceRepository.remove(attendance);
