@@ -136,7 +136,8 @@ export class GroupsService {
     if (!group) throw new NotFoundException('Group not found');
     return group;
   }
-async getGroupsByTeacherId(teacherId: number): Promise<any> {
+
+  async getGroupsByTeacherId(teacherId: number): Promise<any> {
   const groups = await this.groupRepository.find({
     where: { teacher: { id: teacherId }, status: 'active' },
     relations: ['students', 'lessons', 'course'],
@@ -146,7 +147,6 @@ async getGroupsByTeacherId(teacherId: number): Promise<any> {
     throw new NotFoundException('No groups found for this teacher');
   }
 
-  // statistikalar
   const now = new Date();
   const lastWeek = new Date();
   lastWeek.setDate(now.getDate() - 7);
@@ -186,6 +186,16 @@ async getGroupsByTeacherId(teacherId: number): Promise<any> {
     return count + lessonsInMonth;
   }, 0);
 
+  const dayTranslations: { [key: string]: string } = {
+    Monday: 'Dushanba',
+    Tuesday: 'Seshanba',
+    Wednesday: 'Chorshanba',
+    Thursday: 'Payshanba',
+    Friday: 'Juma',
+    Saturday: 'Shanba',
+    Sunday: 'Yakshanba',
+  };
+
   return {
     stats: {
       totalGroups,
@@ -201,7 +211,9 @@ async getGroupsByTeacherId(teacherId: number): Promise<any> {
       course: g.course?.name || 'N/A',
       studentCount: g.students?.length || 0,
       lessonCount: g.lessons?.length || 0,
-      daysOfWeek: g.daysOfWeek?.join(', ') || 'N/A',
+      daysOfWeek: g.daysOfWeek
+        ? g.daysOfWeek.map(day => dayTranslations[day]).join(', ')
+        : 'N/A',
       time: g.startTime && g.endTime ? `${g.startTime} - ${g.endTime}` : 'N/A',
     })),
   };
