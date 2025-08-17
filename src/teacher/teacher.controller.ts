@@ -23,6 +23,23 @@ export class TeachersController {
     return this.teachersService.getAllTeachers(groupId);
   }
 
+  
+  @Roles('teacher')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('teacher/groups/statistics')
+  async getTeacherDashboardStats(@Req() req: any) {
+    const teacherId = req.user.id
+    return this.teachersService.getTeacherDashboardStats(teacherId);
+  }
+
+  @Roles('teacher')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('search/groups')
+  async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
+    const teacherId = req.user.id
+    return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
+  }
+
   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get(':id')
@@ -37,21 +54,6 @@ export class TeachersController {
     return this.teachersService.getTeacherProfile(id);
   }
 
-  @Roles('teacher')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('dashboard')
-  async getTeacherDashboardStats(@Req() req: any) {
-    const teacherId = req.user.id
-    return this.teachersService.getTeacherDashboardStats(teacherId);
-  }
-
-  @Roles('teacher')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('search/groups')
-  async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
-    const teacherId = req.user.id
-    return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
-  }
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
