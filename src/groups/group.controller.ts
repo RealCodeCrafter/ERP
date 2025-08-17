@@ -15,17 +15,18 @@ export class GroupsController {
   create(@Body() createGroupDto: CreateGroupDto) {
     return this.groupsService.createGroup(createGroupDto);
   }
-
-  @Roles('teacher')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('my/teacher/groups')
-  async getGroupsByTeacher(@Req() req: any) {
-    const teacherId = req.user?.id;
-    if (!teacherId) {
-      throw new NotFoundException('Teacher not found in token');
-    }
-    return this.groupsService.getGroupsByTeacherId(teacherId);
+  
+@Roles('teacher')
+@UseGuards(AuthGuard, RolesGuard)
+@Get('my/teacher/groups')
+async getGroupsByTeacher(@Req() req: any) {
+  const teacherId = req.user?.id;
+  if (!teacherId) {
+    throw new NotFoundException('Teacher not found in token');
   }
+  return this.groupsService.getGroupsByTeacherId(teacherId);
+}
+
 
   // 🔹 Guruhga student qo‘shish
   @Roles('admin', 'superAdmin')

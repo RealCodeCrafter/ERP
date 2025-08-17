@@ -8,14 +8,6 @@ import { AuthGuard, Roles, RolesGuard } from '../auth/auth.guard';
 @Controller('teachers')
 export class TeachersController {
   constructor(private readonly teachersService: TeachersService) {}
-  
-  @Roles('teacher')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('teacher/groups/statistics')
-  async getTeacherDashboardStats(@Req() req: any) {
-    const teacherId = req.user.id
-    return this.teachersService.getTeacherDashboardStats(teacherId);
-  }
 
   @Roles('teacher')
   @UseGuards(AuthGuard, RolesGuard)

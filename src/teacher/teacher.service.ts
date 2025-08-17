@@ -292,49 +292,45 @@ export class TeachersService {
       lessonsThisMonth,
     };
   }
+async searchTeacherGroupsByName(
+  teacherId: number,
+  groupName?: string,
+): Promise<any[]> {
+  let groups = await this.groupRepository.find({
+    where: { teacher: { id: teacherId }, status: 'active' },
+    relations: ['students', 'lessons', 'course'],
+  });
 
-  async searchTeacherGroupsByName(
-    teacherId: number,
-    groupName?: string,
-  ): Promise<any[]> {
-
-    const teacher = await this.teacherRepository.findOne({
-      where: { id: teacherId },
-      relations: ['groups', 'groups.students', 'groups.lessons', 'groups.course'],
-    });
-    if (!teacher) {
-      throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
-    }
-
-    const dayTranslations: { [key: string]: string } = {
-      Monday: 'Dushanba',
-      Tuesday: 'Seshanba',
-      Wednesday: 'Chorshanba',
-      Thursday: 'Payshanba',
-      Friday: 'Juma',
-      Saturday: 'Shanba',
-      Sunday: 'Yakshanba',
-    };
-
-    let groups = await this.groupRepository.find({
-      where: { teacher: { id: teacherId } },
-      relations: ['students', 'lessons', 'course'],
-    });
-
-    if (groupName && groupName.trim() !== '') {
-      groups = groups.filter(group =>
-        group.name.toLowerCase().includes(groupName.toLowerCase()),
-      );
-    }
-
-    return groups.map(group => ({
-      name: group.name,
-      daysOfWeek: group.daysOfWeek
-        ? group.daysOfWeek.map(day => dayTranslations[day]).join(', ')
-        : 'N/A',
-      time: group.startTime && group.endTime ? `${group.startTime} - ${group.endTime}` : 'N/A',
-      studentCount: group.students?.length || 0,
-      lessonCount: group.lessons?.length || 0,
-    }));
+  if (groupName && groupName.trim() !== '') {
+    groups = groups.filter(group =>
+      group.name.toLowerCase().includes(groupName.toLowerCase()),
+    );
   }
+
+  const dayTranslations: { [key: string]: string } = {
+    Monday: 'Dushanba',
+    Tuesday: 'Seshanba',
+    Wednesday: 'Chorshanba',
+    Thursday: 'Payshanba',
+    Friday: 'Juma',
+    Saturday: 'Shanba',
+    Sunday: 'Yakshanba',
+  };
+
+  return groups.map(group => ({
+    id: group.id,
+    name: group.name,
+    daysOfWeek: group.daysOfWeek
+      ? group.daysOfWeek.map(day => dayTranslations[day]).join(', ')
+      : 'N/A',
+    time:
+      group.startTime && group.endTime
+        ? `${group.startTime} - ${group.endTime}`
+        : 'N/A',
+    studentCount: group.students?.length || 0,
+    lessonCount: group.lessons?.length || 0,
+    course: group.course?.name || 'N/A',
+  }));
+}
+
 }

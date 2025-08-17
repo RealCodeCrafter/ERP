@@ -136,20 +136,77 @@ export class GroupsService {
     if (!group) throw new NotFoundException('Group not found');
     return group;
   }
+async getGroupsByTeacherId(teacherId: number): Promise<any> {
+  const groups = await this.groupRepository.find({
+    where: { teacher: { id: teacherId }, status: 'active' },
+    relations: ['students', 'lessons', 'course'],
+  });
 
-  async getGroupsByTeacherId(teacherId: number): Promise<Group[]> {
-    const teacher = await this.teacherRepository.findOne({
-      where: { id: teacherId },
-    });
-
-    if (!teacher) {
-      throw new NotFoundException('Teacher not found');
-    }
-
-    return this.groupRepository.find({
-      where: { teacher: { id: teacher.id }, status: 'active' },
-    });
+  if (!groups.length) {
+    throw new NotFoundException('No groups found for this teacher');
   }
+
+  // statistikalar
+  const now = new Date();
+  const lastWeek = new Date();
+  lastWeek.setDate(now.getDate() - 7);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const totalGroups = groups.length;
+  const activeGroups = groups.filter(g => g.status === 'active').length;
+  const newGroupsLastWeek = groups.filter(
+    g => g.createdAt && g.createdAt >= lastWeek,
+  ).length;
+
+  const ongoingLessons = groups.reduce((count, group) => {
+    const lessonsToday =
+      group.lessons?.filter(lesson => {
+        const lessonDate = new Date(lesson.lessonDate);
+        return (
+          lessonDate.toDateString() === now.toDateString() &&
+          group.startTime &&
+          group.endTime &&
+          now >= new Date(`${lessonDate.toISOString().split('T')[0]}T${group.startTime}:00`) &&
+          now <= new Date(`${lessonDate.toISOString().split('T')[0]}T${group.endTime}:00`)
+        );
+      }).length || 0;
+    return count + lessonsToday;
+  }, 0);
+
+  const totalLessons = groups.reduce(
+    (count, g) => count + (g.lessons?.length || 0),
+    0,
+  );
+
+  const lessonsThisMonth = groups.reduce((count, g) => {
+    const lessonsInMonth =
+      g.lessons?.filter(
+        lesson => lesson.lessonDate >= startOfMonth && lesson.lessonDate <= now,
+      ).length || 0;
+    return count + lessonsInMonth;
+  }, 0);
+
+  return {
+    stats: {
+      totalGroups,
+      newGroupsLastWeek,
+      activeGroups,
+      ongoingLessons,
+      totalLessons,
+      lessonsThisMonth,
+    },
+    groups: groups.map(g => ({
+      id: g.id,
+      name: g.name,
+      course: g.course?.name || 'N/A',
+      studentCount: g.students?.length || 0,
+      lessonCount: g.lessons?.length || 0,
+      daysOfWeek: g.daysOfWeek?.join(', ') || 'N/A',
+      time: g.startTime && g.endTime ? `${g.startTime} - ${g.endTime}` : 'N/A',
+    })),
+  };
+}
+
 
   async getGroupsByStudentId(username: string): Promise<Group[]> {
     return this.groupRepository
