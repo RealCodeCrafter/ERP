@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Req, BadRequestException } from '@nestjs/common';
 import { TeachersService } from './teacher.service';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
@@ -23,6 +23,8 @@ export class TeachersController {
     return this.teachersService.getAllTeachers(groupId);
   }
 
+
+
   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get(':id')
@@ -37,6 +39,30 @@ export class TeachersController {
     return this.teachersService.getTeacherProfile(id);
   }
 
+  
+
+  @Roles('teacher')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('dashboard')
+  async getTeacherDashboardStats(@Req() req: any) {
+    const teacherId = parseInt(req.user.userId, 10); // JWT tokendan teacherId olinadi
+    if (isNaN(teacherId)) {
+      throw new BadRequestException('Invalid teacher ID in token');
+    }
+    return this.teachersService.getTeacherDashboardStats(teacherId);
+  }
+
+  @Roles('teacher')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('search/groups')
+  async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
+    const teacherId = parseInt(req.user.userId, 10); // JWT tokendan teacherId olinadi
+    if (isNaN(teacherId)) {
+      throw new BadRequestException('Invalid teacher ID in token');
+    }
+    return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
+  }
+  
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Put(':id')
@@ -63,21 +89,5 @@ export class TeachersController {
   @Get('statistics')
   async getTeacherStatistics(@Query('groupId') groupId: number): Promise<any[]> {
     return this.teachersService.getTeacherStatistics(groupId);
-  }
-
-  @Roles('teacher')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('dashboard')
-  async getTeacherDashboardStats(@Req() req: any) {
-    const teacherId = req.user.userId; // JWT tokendan teacherId olinadi
-    return this.teachersService.getTeacherDashboardStats(teacherId);
-  }
-
-  @Roles('teacher')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('search/groups')
-  async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
-    const teacherId = req.user.userId; // JWT tokendan teacherId olinadi
-    return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
   }
 }

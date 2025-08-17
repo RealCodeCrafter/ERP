@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, Between } from 'typeorm';
 import { Teacher } from './entities/teacher.entity';
@@ -75,6 +75,9 @@ export class TeachersService {
   }
 
   async getTeacherById(id: number): Promise<Teacher> {
+    if (isNaN(id)) {
+      throw new BadRequestException('Invalid teacher ID');
+    }
     const teacher = await this.teacherRepository.findOne({
       where: { id },
       relations: ['groups', 'groups.students', 'profile', 'attendances'],
@@ -233,6 +236,10 @@ export class TeachersService {
     totalLessons: number;
     lessonsThisMonth: number;
   }> {
+    if (isNaN(teacherId)) {
+      throw new BadRequestException('Invalid teacher ID');
+    }
+
     const teacher = await this.teacherRepository.findOne({
       where: { id: teacherId },
       relations: ['groups', 'groups.lessons'],
@@ -292,9 +299,13 @@ export class TeachersService {
     teacherId: number,
     groupName?: string,
   ): Promise<any[]> {
+    if (isNaN(teacherId)) {
+      throw new BadRequestException('Invalid teacher ID');
+    }
+
     const teacher = await this.teacherRepository.findOne({
       where: { id: teacherId },
-      relations: ['groups', 'groups.students', 'groups.lessons'],
+      relations: ['groups', 'groups.students', 'groups.lessons', 'groups.course'],
     });
     if (!teacher) {
       throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
@@ -310,7 +321,11 @@ export class TeachersService {
       Sunday: 'Yakshanba',
     };
 
-    let groups = teacher.groups;
+    let groups = await this.groupRepository.find({
+      where: { teacher: { id: teacherId } },
+      relations: ['students', 'lessons', 'course'],
+    });
+
     if (groupName && groupName.trim() !== '') {
       groups = groups.filter(group =>
         group.name.toLowerCase().includes(groupName.toLowerCase()),
