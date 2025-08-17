@@ -56,13 +56,13 @@ export class TeachersController {
   @UseGuards(AuthGuard, RolesGuard)
   @Get('search/groups')
   async searchTeacherGroupsByName(@Req() req: any, @Query('groupName') groupName?: string) {
-    const teacherId = parseInt(req.user.userId, 10); // JWT tokendan teacherId olinadi
+    const teacherId =  req.user.userId
     if (isNaN(teacherId)) {
       throw new BadRequestException('Invalid teacher ID in token');
     }
     return this.teachersService.searchTeacherGroupsByName(teacherId, groupName);
   }
-  
+
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Put(':id')

@@ -27,6 +27,8 @@ export class AuthGuard implements CanActivate {
         secret: process.env.JWT_SECRET,
       });
       request.user = payload;
+      console.log(payload);
+      
       return true;
     } catch (error) {
       throw new UnauthorizedException('Token noto‘g‘ri');
