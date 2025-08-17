@@ -131,37 +131,29 @@ export class AttendanceService {
     }
     return attendance;
   }
-  async update(updateAttendanceDto: UpdateAttendanceDto, teacherId: number) {
+
+   async update(attendanceId: number, updateAttendanceDto: UpdateAttendanceDto, teacherId: number) {
     const teacher = await this.teacherRepository.findOne({ where: { id: teacherId } });
     if (!teacher) {
       throw new NotFoundException('Teacher not found');
     }
 
-    const results = [];
-    for (const attendanceDto of updateAttendanceDto.attendances) {
-      const attendance = await this.attendanceRepository.findOne({
-        where: { id: attendanceDto.id },
-        relations: ['lesson', 'lesson.group', 'lesson.group.teacher'],
-      });
-      if (!attendance) {
-        throw new NotFoundException(`Attendance with ID ${attendanceDto.id} not found`);
-      }
-
-      if (attendance.lesson.group.teacher.id !== teacherId) {
-        throw new ForbiddenException(`You can only update attendance for your own group`);
-      }
-
-      if (!['present', 'absent', 'late'].includes(attendanceDto.status)) {
-        throw new BadRequestException(`Invalid status for attendance ID ${attendanceDto.id}`);
-      }
-
-      attendance.status = attendanceDto.status;
-      const updatedAttendance = await this.attendanceRepository.save(attendance);
-      results.push(updatedAttendance);
+    const attendance = await this.attendanceRepository.findOne({
+      where: { id: attendanceId },
+      relations: ['lesson', 'lesson.group', 'lesson.group.teacher'],
+    });
+    if (!attendance) {
+      throw new NotFoundException(`Attendance with ID ${attendanceId} not found`);
     }
 
-    return results;
+    if (attendance.lesson.group.teacher.id !== teacherId) {
+      throw new ForbiddenException('You can only update attendance for your own group');
+    }
+
+    attendance.status = updateAttendanceDto.status;
+    return this.attendanceRepository.save(attendance);
   }
+  
 
   async remove(id: number) {
     const attendance = await this.findOne(id);
