@@ -191,12 +191,10 @@ export class AttendanceService {
 }
 
 async getGroupsWithoutAttendance(date: string) {
-    // Vaqtni O'zbekiston vaqt zonasiga sozlash (+05:00)
     const now = moment().utcOffset('+05:00');
     const dayOfWeek = moment(date, 'YYYY-MM-DD').format('dddd');
     const targetDate = moment(date, 'YYYY-MM-DD');
 
-    // Faol guruhlarni olish
     const groups = await this.groupRepository.find({
       where: { status: 'active' },
       relations: ['teacher', 'lessons', 'lessons.attendances'],
@@ -205,9 +203,7 @@ async getGroupsWithoutAttendance(date: string) {
     const results = [];
 
     for (const group of groups) {
-      // Agar guruhning dars kuni mos kelmassa, o'tkazib yuboramiz
       if (!group.daysOfWeek?.includes(dayOfWeek)) {
-        // Ma'lumotlar bazasida noto'g'ri darslar borligini tekshirish
         const invalidLessons = group.lessons.filter(l =>
           moment(l.lessonDate).isSame(targetDate, 'day'),
         );
@@ -219,8 +215,12 @@ async getGroupsWithoutAttendance(date: string) {
         continue;
       }
 
-      // Guruhning birinchi darsi hali boshlanmaganligini tekshirish
       const createdAt = moment(group.createdAt).utcOffset('+05:00');
+      const groupStart = moment(
+        `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
+        'YYYY-MM-DD HH:mm',
+      ).utcOffset('+05:00');
+
       const firstLessonDate = moment(group.createdAt).startOf('day');
       let foundFirstLessonDay = false;
       while (!foundFirstLessonDay && firstLessonDate.isSameOrBefore(targetDate)) {
@@ -232,25 +232,18 @@ async getGroupsWithoutAttendance(date: string) {
         }
       }
 
-      // Agar targetDate birinchi dars kunidan oldin bo'lsa yoki birinchi dars kuni bo'lsa lekin createdAt dan oldin bo'lsa
-      const groupStart = moment(
-        `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
-        'YYYY-MM-DD HH:mm',
-      ).utcOffset('+05:00');
       if (
         targetDate.isBefore(firstLessonDate, 'day') ||
-        (targetDate.isSame(firstLessonDate, 'day') && groupStart.isSameOrBefore(createdAt))
+        (targetDate.isSame(firstLessonDate, 'day') && groupStart.isBefore(createdAt))
       ) {
         console.log(`Guruh ${group.name}: Hali birinchi dars boshlanmagan`);
         continue;
       }
 
-      // Shu kunga tegishli darslarni filtrlaymiz
       const lessons = group.lessons.filter(l =>
         moment(l.lessonDate).isSame(targetDate, 'day'),
       );
 
-      // Agar dars bo'lmasa, guruhning jadvalini tekshiramiz
       if (!lessons.length) {
         const groupEnd = moment(
           `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
@@ -275,13 +268,11 @@ async getGroupsWithoutAttendance(date: string) {
         continue;
       }
 
-      // Har bir darsni alohida tekshiramiz
       for (const lesson of lessons) {
         const hasAttendance = lesson.attendances?.length > 0;
         const lessonStart = moment(lesson.lessonDate).utcOffset('+05:00');
         const lessonEnd = moment(lesson.endDate).utcOffset('+05:00');
 
-        // Darsning lessonDate createdAt dan oldin bo'lmasligini tekshirish
         if (lessonStart.isBefore(createdAt)) {
           console.warn(
             `Xato: Guruh ${group.name} uchun dars (ID: ${lesson.id}) guruh yaratilishidan oldin (${lesson.lessonDate}) ro'yxatga olingan.`,
