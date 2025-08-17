@@ -1,6 +1,6 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository, ILike } from 'typeorm';
+import { Between, Repository, ILike, In } from 'typeorm';
 import { Attendance } from './entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -320,5 +320,131 @@ export class AttendanceService {
     endDate.setDate(endDate.getDate() + 30);
 
     return { currentCycle: { startDate, endDate }, isFirstCycle };
+  }
+
+  async getAttendanceReport(
+    groupId: number,
+    date?: string,
+    period?: 'daily' | 'weekly' | 'monthly',
+    studentName?: string,
+  ): Promise<{ message: string; count: number; attendances: any[] }> {
+    const group = await this.groupRepository.findOne({ where: { id: groupId, status: 'active' } });
+    if (!group) {
+      throw new NotFoundException(`Active group with ID ${groupId} not found`);
+    }
+
+    const query: any = {
+      lesson: { group: { id: groupId } },
+    };
+
+    // Sana bo'yicha filtr
+    if (date && period) {
+      const startDate = new Date(date);
+      if (isNaN(startDate.getTime())) {
+        throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+      }
+      let endDate = new Date(startDate);
+
+      if (period === 'daily') {
+        endDate.setDate(startDate.getDate() + 1);
+      } else if (period === 'weekly') {
+        endDate.setDate(startDate.getDate() + 7);
+      } else if (period === 'monthly') {
+        endDate.setMonth(startDate.getMonth() + 1);
+      } else {
+        throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
+      }
+
+      query.lesson.lessonDate = Between(startDate, endDate);
+    }
+
+    // StudentName bo'yicha filtr
+    if (studentName && studentName.trim() !== '') {
+      query.student = [
+        { firstName: ILike(`%${studentName.trim()}%`) },
+        { lastName: ILike(`%${studentName.trim()}%`) },
+      ];
+    }
+
+    const attendances = await this.attendanceRepository.find({
+      where: query,
+      relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const formattedAttendances = attendances.map((attendance) => ({
+      firstName: attendance.student.firstName,
+      lastName: attendance.student.lastName,
+      group: attendance.lesson.group.name,
+      course: attendance.lesson.group.course.name,
+      time: attendance.lesson.lessonDate
+        ? `${attendance.lesson.lessonDate.toISOString().split('T')[0]} ${attendance.lesson.group.startTime || 'N/A'}`
+        : 'N/A',
+      teacher: `${attendance.lesson.group.teacher.firstName} ${attendance.lesson.group.teacher.lastName}`,
+      status: attendance.status === 'present' ? 'present' : attendance.status === 'absent' ? 'absent' : 'late',
+    }));
+
+    return {
+      message: `Yo'qlama ma'lumotlari\nTanlangan sanada ${formattedAttendances.length} ta yozuv topildi`,
+      count: formattedAttendances.length,
+      attendances: formattedAttendances,
+    };
+  }
+
+  async getDailyAttendanceStats(groupId?: number): Promise<{
+    totalStudents: number;
+    present: number;
+    absent: number;
+    late: number;
+  }> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
+
+    const query: any = {
+      status: 'active',
+      daysOfWeek: ILike(`%${currentDay}%`),
+    };
+    if (groupId) {
+      query.id = groupId;
+    }
+
+    const groups = await this.groupRepository.find({
+      where: query,
+      relations: ['students'],
+    });
+
+    if (groups.length === 0) {
+      return { totalStudents: 0, present: 0, absent: 0, late: 0 };
+    }
+
+    let totalStudents = 0;
+    for (const group of groups) {
+      totalStudents += group.students.length;
+    }
+
+    const attendances = await this.attendanceRepository.find({
+      where: {
+        lesson: {
+          group: { id: groupId ? groupId : In(groups.map(g => g.id)) },
+          lessonDate: Between(today, tomorrow),
+        },
+      },
+      relations: ['student', 'lesson', 'lesson.group'],
+    });
+
+    const present = attendances.filter(a => a.status === 'present').length;
+    const absent = attendances.filter(a => a.status === 'absent').length;
+    const late = attendances.filter(a => a.status === 'late').length;
+
+    return {
+      totalStudents,
+      present,
+      absent,
+      late,
+    };
   }
 }

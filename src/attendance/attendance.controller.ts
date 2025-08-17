@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req, UseGuards, Query, BadRequestException } from '@nestjs/common';
 import { AttendanceService } from './attendance.service';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -29,6 +29,34 @@ export class AttendanceController {
   @Get('statistics')
   getAttendanceStatistics(@Query('groupId') groupId: number) {
     return this.attendanceService.getAttendanceStatistics(groupId);
+  }
+
+  
+  @Roles('admin', 'teacher', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('report')
+  async getAttendanceReport(
+    @Query('groupId') groupId: string,
+    @Query('date') date?: string,
+    @Query('period') period?: 'daily' | 'weekly' | 'monthly',
+    @Query('studentName') studentName?: string,
+  ) {
+    const groupIdNum = parseInt(groupId, 10);
+    if (isNaN(groupIdNum)) {
+      throw new BadRequestException('groupId must be a valid number');
+    }
+    return this.attendanceService.getAttendanceReport(groupIdNum, date, period, studentName);
+  }
+
+  @Roles('admin', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Get('daily-stats')
+  async getDailyAttendanceStats(@Query('groupId') groupId?: string) {
+    const groupIdNum = groupId ? parseInt(groupId, 10) : undefined;
+    if (groupId && isNaN(groupIdNum)) {
+      throw new BadRequestException('groupId must be a valid number');
+    }
+    return this.attendanceService.getDailyAttendanceStats(groupIdNum);
   }
 
   @Roles('teacher', 'admin', 'superAdmin')
