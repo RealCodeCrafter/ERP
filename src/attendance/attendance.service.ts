@@ -207,7 +207,15 @@ async getGroupsWithoutAttendance(date: string) {
     for (const group of groups) {
       // Agar guruhning dars kuni mos kelmassa, o'tkazib yuboramiz
       if (!group.daysOfWeek?.includes(dayOfWeek)) {
-        console.log(`Guruh ${group.name} o'tkazildi, chunki kun mos emas: ${dayOfWeek}`);
+        // Ma'lumotlar bazasida noto'g'ri darslar borligini tekshirish
+        const invalidLessons = group.lessons.filter(l =>
+          moment(l.lessonDate).isSame(targetDate, 'day'),
+        );
+        if (invalidLessons.length) {
+          console.warn(
+            `Xato: Guruh ${group.name} uchun ${dayOfWeek} kuni dars bo'lmasligi kerak, lekin ${invalidLessons.length} ta dars topildi.`,
+          );
+        }
         continue;
       }
 
@@ -276,7 +284,6 @@ async getGroupsWithoutAttendance(date: string) {
 
     return results;
   }
-  
   async remove(id: number) {
     const attendance = await this.findOne(id);
     return this.attendanceRepository.remove(attendance);
