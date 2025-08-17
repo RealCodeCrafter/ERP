@@ -228,6 +228,28 @@ async getGroupsWithoutAttendance(date: string) {
         `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
         'YYYY-MM-DD HH:mm',
       ).utcOffset('+05:00');
+      const createdAt = moment(group.createdAt).utcOffset('+05:00');
+
+      // Guruhning birinchi darsi hali boshlanmaganligini tekshirish
+      const firstLessonDate = moment(group.createdAt).startOf('day');
+      let foundFirstLessonDay = false;
+      while (!foundFirstLessonDay && firstLessonDate.isSameOrBefore(targetDate)) {
+        const currentDayOfWeek = firstLessonDate.format('dddd');
+        if (group.daysOfWeek.includes(currentDayOfWeek)) {
+          foundFirstLessonDay = true;
+        } else {
+          firstLessonDate.add(1, 'day');
+        }
+      }
+
+      // Agar targetDate birinchi dars kunidan oldin bo'lsa yoki birinchi dars kuni bo'lsa lekin createdAt dan oldin bo'lsa
+      if (
+        targetDate.isBefore(firstLessonDate, 'day') ||
+        (targetDate.isSame(firstLessonDate, 'day') && groupStart.isSameOrBefore(createdAt))
+      ) {
+        console.log(`Guruh ${group.name}: Hali birinchi dars boshlanmagan`);
+        continue;
+      }
 
       // Shu kunga tegishli darslarni filtrlaymiz
       const lessons = group.lessons.filter(l =>
