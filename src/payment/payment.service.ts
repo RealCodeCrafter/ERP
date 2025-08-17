@@ -151,29 +151,6 @@ export class PaymentService {
     await this.paymentRepository.remove(payment);
   }
 
-  async searchPayments(studentName: string, groupId: number, status: string, monthFor: string): Promise<Payment[]> {
-    const query: any = {};
-    if (studentName) {
-      query.student = [
-        { firstName: ILike(`%${studentName}%`) },
-        { lastName: ILike(`%${studentName}%`) },
-      ];
-    }
-    if (groupId) {
-      query.group = { id: groupId, status: 'active' };
-    }
-    if (status) {
-      query.adminStatus = status;
-    }
-    if (monthFor) {
-      query.monthFor = monthFor;
-    }
-    return this.paymentRepository.find({
-      where: query,
-      relations: ['student', 'group', 'group.teacher', 'course'],
-    });
-  }
-
   async findPaidPayments(studentName: string, groupId: number, monthFor: string): Promise<Payment[]> {
     const query: any = { paid: true };
     if (studentName) {
@@ -192,6 +169,27 @@ export class PaymentService {
       where: query,
       relations: ['student', 'group', 'course'],
     });
+  }
+
+   async getPaymentsByGroupAndStudentName(groupId: number, studentName?: string): Promise<Payment[]> {
+    const query: any = {
+      group: { id: groupId, status: 'active' },
+    };
+
+    if (studentName) {
+      query.student = [
+        { firstName: ILike(`%${studentName}%`) },
+        { lastName: ILike(`%${studentName}%`) },
+      ];
+    }
+
+    const payments = await this.paymentRepository.find({
+      where: query,
+      relations: ['student', 'group', 'group.teacher', 'course'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return payments;
   }
 
   async findUnpaidPayments(studentName: string, groupId: number, monthFor: string): Promise<Payment[]> {
@@ -271,6 +269,30 @@ export class PaymentService {
     });
     return payments.reduce((sum, payment) => sum + payment.amount, 0);
   }
+
+   async searchPayments(studentName: string, groupId: number, status: string, monthFor: string): Promise<Payment[]> {
+    const query: any = {};
+    if (studentName) {
+      query.student = [
+        { firstName: ILike(`%${studentName}%`) },
+        { lastName: ILike(`%${studentName}%`) },
+      ];
+    }
+    if (groupId) {
+      query.group = { id: groupId, status: 'active' };
+    }
+    if (status) {
+      query.adminStatus = status;
+    }
+    if (monthFor) {
+      query.monthFor = monthFor;
+    }
+    return this.paymentRepository.find({
+      where: query,
+      relations: ['student', 'group', 'group.teacher', 'course'],
+    });
+  }
+
 
   async getYearlyIncome(year: number): Promise<number> {
     const startDate = new Date(year, 0, 1);

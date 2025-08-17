@@ -3,6 +3,7 @@ import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { AuthGuard, Roles, RolesGuard } from '../auth/auth.guard';
+import { Payment } from './entities/payment.entity';
 
 @Controller('payments')
 export class PaymentController {
@@ -20,6 +21,17 @@ export class PaymentController {
   @Get()
   findAll() {
     return this.paymentService.findAll();
+  }
+
+  
+  @Roles('admin', 'teacher', 'superAdmin')
+  @UseGuards(AuthGuard, RolesGuard)
+    @Get('report')
+    getPaymentsByGroupAndStudentName(
+    @Query('groupId') groupId: number,
+    @Query('studentName') studentName?: string,
+  ): Promise<Payment[]> {
+    return this.paymentService.getPaymentsByGroupAndStudentName(groupId, studentName);
   }
 
   @Roles('teacher')
