@@ -188,9 +188,10 @@ export class AttendanceService {
   }
 
   return results;
+
 }
 
-async getGroupsWithoutAttendance(date: string) {
+ async getGroupsWithoutAttendance(date: string) {
     const now = moment().utcOffset('+05:00');
     const dayOfWeek = moment(date, 'YYYY-MM-DD').format('dddd');
     const targetDate = moment(date, 'YYYY-MM-DD');
@@ -311,6 +312,7 @@ async getGroupsWithoutAttendance(date: string) {
 
     return results;
   }
+  
   async remove(id: number) {
     const attendance = await this.findOne(id);
     return this.attendanceRepository.remove(attendance);

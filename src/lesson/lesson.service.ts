@@ -8,6 +8,7 @@ import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { Teacher } from '../teacher/entities/teacher.entity';
 import { Student } from '../students/entities/student.entity';
+import * as moment from 'moment-timezone';
 
 @Injectable()
 export class LessonsService {
@@ -30,6 +31,77 @@ export class LessonsService {
 
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  async create(userId: number, lessonData: CreateLessonDto) {
+    const user = await this.getUserById(userId);
+
+    const group = await this.groupRepository.findOne({
+      where: { id: lessonData.groupId },
+      relations: ['teacher', 'students', 'course'],
+    });
+
+    if (!group) throw new NotFoundException('Group not found');
+
+    if (group.teacher?.id !== user.id) {
+      throw new ForbiddenException('You are not assigned to this group');
+    }
+
+    // Guruhdagi mavjud darslar sonini hisoblash
+    const lessonCount = await this.lessonRepository.count({
+      where: { group: { id: lessonData.groupId } },
+    });
+
+    // Joriy sanani guruhning daysOfWeek asosida aniqlash
+    const now = moment().utcOffset('+05:00');
+    const targetDate = now.clone().startOf('day');
+    const dayOfWeek = now.format('dddd');
+
+    // Agar bugun guruhning dars kuni bo'lmasa, eng yaqin dars kunini topish
+    if (!group.daysOfWeek.includes(dayOfWeek)) {
+      let found = false;
+      let nextDate = now.clone();
+      for (let i = 0; i < 7; i++) {
+        nextDate.add(1, 'day');
+        if (group.daysOfWeek.includes(nextDate.format('dddd'))) {
+          found = true;
+          targetDate.set({ year: nextDate.year(), month: nextDate.month(), date: nextDate.date() });
+          break;
+        }
+      }
+      if (!found) {
+        throw new NotFoundException('No valid lesson day found for this group');
+      }
+    }
+
+    // lessonDate va endDate ni guruhning startTime va endTime asosida hisoblash
+    const lessonDate = moment(
+      `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
+      'YYYY-MM-DD HH:mm',
+    ).utcOffset('+05:00');
+
+    let endDate: Date | null = null;
+    if (group.startTime && group.endTime) {
+      endDate = moment(
+        `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
+        'YYYY-MM-DD HH:mm',
+      ).utcOffset('+05:00').toDate();
+
+      // Agar endDate lessonDate dan oldin bo'lsa, keyingi kunga o'tkazish
+      if (moment(endDate).isBefore(lessonDate)) {
+        endDate = moment(endDate).add(1, 'day').toDate();
+      }
+    }
+
+    const lesson = this.lessonRepository.create({
+      lessonName: lessonData.lessonName,
+      lessonNumber: lessonCount + 1,
+      lessonDate: lessonDate.toDate(),
+      endDate,
+      group,
+    });
+
+    return this.lessonRepository.save(lesson);
   }
 
   async getAll(userId: number) {
@@ -66,57 +138,6 @@ export class LessonsService {
       where: query,
       relations: ['group', 'group.course', 'group.teacher', 'attendances', 'attendances.student'],
     });
-  }
-
-  async create(userId: number, lessonData: CreateLessonDto) {
-    const user = await this.getUserById(userId);
-
-    const group = await this.groupRepository.findOne({
-      where: { id: lessonData.groupId },
-      relations: ['teacher', 'students', 'course'],
-    });
-
-    if (!group) throw new NotFoundException('Group not found');
-
-    if (group.teacher?.id !== user.id) {
-      throw new ForbiddenException('You are not assigned to this group');
-    }
-
-    // Guruhdagi mavjud darslar sonini hisoblash
-    const lessonCount = await this.lessonRepository.count({
-      where: { group: { id: lessonData.groupId } },
-    });
-
-    // Joriy vaqtni lessonDate sifatida o'rnatish
-    const lessonDate = new Date();
-
-    // endDate ni guruhning startTime va endTime dan hisoblash
-    let endDate: Date | null = null;
-    if (group.startTime && group.endTime) {
-      const [startHours, startMinutes] = group.startTime.split(':').map(Number);
-      const [endHours, endMinutes] = group.endTime.split(':').map(Number);
-
-      const startDateTime = new Date(lessonDate);
-      startDateTime.setHours(startHours, startMinutes, 0, 0);
-
-      endDate = new Date(lessonDate);
-      endDate.setHours(endHours, endMinutes, 0, 0);
-
-      // Agar endTime kechroq bo'lsa, lekin keyingi kun bo'lmasligi kerak
-      if (endDate < startDateTime) {
-        endDate.setDate(endDate.getDate() + 1);
-      }
-    }
-
-    const lesson = this.lessonRepository.create({
-      lessonName: lessonData.lessonName,
-      lessonNumber: lessonCount + 1,
-      lessonDate,
-      endDate,
-      group,
-    });
-
-    return this.lessonRepository.save(lesson);
   }
 
   async update(id: number, updateLessonDto: UpdateLessonDto, userId: number) {
@@ -197,62 +218,61 @@ export class LessonsService {
     });
   }
 
+  async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<any> {
+    const user = await this.getUserById(userId);
 
-async getAttendanceHistoryByLesson(lessonId: number, userId: number): Promise<any> {
-  const user = await this.getUserById(userId);
+    const lesson = await this.lessonRepository.findOne({
+      where: { id: lessonId },
+      relations: ['group', 'group.teacher', 'group.students', 'attendances', 'attendances.student'],
+    });
 
-  const lesson = await this.lessonRepository.findOne({
-    where: { id: lessonId },
-    relations: ['group', 'group.teacher', 'group.students', 'attendances', 'attendances.student'],
-  });
+    if (!lesson) {
+      throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
+    }
 
-  if (!lesson) {
-    throw new NotFoundException(`Lesson with ID ${lessonId} not found`);
+    const isTeacher = lesson.group.teacher?.id === user.id;
+    const isStudent = lesson.group.students.some(student => student.id === user.id);
+
+    if (!isTeacher && !isStudent) {
+      throw new ForbiddenException('You can only view attendance history for lessons in your own group');
+    }
+
+    const attendances = await this.attendanceRepository
+      .createQueryBuilder('attendance')
+      .leftJoinAndSelect('attendance.student', 'student')
+      .leftJoinAndSelect('attendance.lesson', 'lesson')
+      .leftJoinAndSelect('lesson.group', 'group')
+      .where('attendance.lessonId = :lessonId', { lessonId })
+      .orderBy('student.firstName', 'ASC')
+      .getMany();
+
+    const filteredAttendances = isStudent
+      ? attendances.filter(attendance => attendance.student.id === user.id)
+      : attendances;
+
+    const totalStudents = filteredAttendances.length;
+    const presentCount = filteredAttendances.filter(a => a.status === 'present').length;
+    const absentCount = filteredAttendances.filter(a => a.status === 'absent').length;
+    const lateCount = filteredAttendances.filter(a => a.status === 'late').length;
+
+    return {
+      statistics: {
+        totalStudents: totalStudents,
+        present: presentCount,
+        absent: absentCount,
+        late: lateCount,
+      },
+      date: filteredAttendances.length > 0 
+        ? filteredAttendances[0].createdAt.toISOString().split('T')[0]
+        : lesson.lessonDate.toISOString().split('T')[0],
+      exportable: true,
+      students: filteredAttendances.map((attendance, index) => ({
+        studentId: attendance.student.id,
+        studentName: `${attendance.student.firstName} ${attendance.student.lastName}`,
+        phone: attendance.student.phone,
+        groupName: lesson.group.name,
+        status: attendance.status === 'present' ? 'present' : attendance.status === 'absent' ? 'absent' : 'late',
+      })),
+    };
   }
-
-  const isTeacher = lesson.group.teacher?.id === user.id;
-  const isStudent = lesson.group.students.some(student => student.id === user.id);
-
-  if (!isTeacher && !isStudent) {
-    throw new ForbiddenException('You can only view attendance history for lessons in your own group');
-  }
-
-  const attendances = await this.attendanceRepository
-    .createQueryBuilder('attendance')
-    .leftJoinAndSelect('attendance.student', 'student')
-    .leftJoinAndSelect('attendance.lesson', 'lesson')
-    .leftJoinAndSelect('lesson.group', 'group')
-    .where('attendance.lessonId = :lessonId', { lessonId })
-    .orderBy('student.firstName', 'ASC') // Alifbo tartibida saralash
-    .getMany();
-
-  const filteredAttendances = isStudent
-    ? attendances.filter(attendance => attendance.student.id === user.id)
-    : attendances;
-
-  const totalStudents = filteredAttendances.length;
-  const presentCount = filteredAttendances.filter(a => a.status === 'present').length;
-  const absentCount = filteredAttendances.filter(a => a.status === 'absent').length;
-  const lateCount = filteredAttendances.filter(a => a.status === 'late').length;
-
-  return {
-    statistics: {
-      totalStudents: totalStudents,
-      present: presentCount,
-      absent: absentCount,
-      late: lateCount,
-    },
-    date: filteredAttendances.length > 0 
-      ? filteredAttendances[0].createdAt.toISOString().split('T')[0]
-      : lesson.lessonDate.toISOString().split('T')[0],
-    exportable: true,
-    students: filteredAttendances.map((attendance, index) => ({
-      studentId: attendance.student.id,
-      studentName: `${attendance.student.firstName} ${attendance.student.lastName}`,
-      phone: attendance.student.phone,
-      groupName: lesson.group.name,
-      status: attendance.status === 'present' ? 'present' : attendance.status === 'absent' ? 'absent' : 'late',
-    })),
-  };
-}
 }
