@@ -19,8 +19,12 @@ export class StudentsController {
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get()
-  async getAllStudents(): Promise<Student[]> {
-    return this.studentsService.getAllStudents();
+  async getAllStudents(
+    @Query('groupId') groupId?: number,
+    @Query('paid') paid?: string,
+  ) {
+    const paidBoolean = paid !== undefined ? paid === 'true' : undefined;
+    return this.studentsService.getAllStudents(groupId, paidBoolean);
   }
 
   @Roles('admin', 'superAdmin')
