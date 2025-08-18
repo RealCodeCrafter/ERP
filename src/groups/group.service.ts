@@ -239,24 +239,75 @@ export class GroupsService {
     if (!group) throw new NotFoundException('Active group not found');
     return group.students;
   }
-async getAllGroupsForAdmin(): Promise<Group[]> {
-  return this.groupRepository.find({
-    relations: [
-      'course',
-      'teacher',
-      'students',
-      'lessons',
-      'lessons.attendances',
-      'lessons.attendances.student',
-      'lessons.attendances.teacher',
-      'payments', // agar to‘lovlar ham kerak bo‘lsa
-    ],
-    order: {
-      createdAt: 'DESC',
-    },
-  });
-}
 
+  async getAllGroupsForAdmin(search?: string): Promise<any> {
+    // 🔹 Joriy oyni aniqlash
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    const monthStart = new Date(currentYear, currentMonth, 1);
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+
+    // 🔹 Guruhlar so‘rovi
+    const groupsQuery = this.groupRepository
+      .createQueryBuilder('group')
+      .leftJoinAndSelect('group.course', 'course')
+      .leftJoinAndSelect('group.teacher', 'teacher')
+      .leftJoinAndSelect('group.students', 'students')
+      .where('group.status = :status', { status: 'active' });
+
+    // 🔹 Guruh nomi bo‘yicha filtr
+    if (search && search.trim() !== '') {
+      groupsQuery.andWhere('group.name ILike :search', { search: `%${search.trim()}%` });
+    }
+
+    const groups = await groupsQuery
+      .orderBy('group.createdAt', 'DESC')
+      .getMany();
+
+    // 🔹 Statistika hisoblash
+    // Jami guruhlar
+    const totalGroups = groups.length;
+
+    // Jami talabalar (noyob)
+    const allStudents = groups.flatMap(group => group.students.map(student => student.id));
+    const totalStudents = new Set(allStudents).size;
+
+    // Faol kurslar (noyob kurslar soni)
+    const activeCourses = new Set(groups.map(group => group.course.id)).size;
+
+    // Bu oyda yaratilgan guruhlar (joriy oyda createdAt bo‘yicha)
+    const groupsThisMonth = await this.groupRepository
+      .createQueryBuilder('group')
+      .where('group.status = :status', { status: 'active' })
+      .andWhere('group.createdAt BETWEEN :monthStart AND :monthEnd', {
+        monthStart,
+        monthEnd,
+      })
+      .getMany();
+    const totalGroupsThisMonth = groupsThisMonth.length;
+
+    // 🔹 Guruhlar ro‘yxatini formatlash
+    const groupList = groups.map(group => ({
+      id: group.id,
+      name: group.name,
+      teacher: `${group.teacher?.firstName || 'N/A'} ${group.teacher?.lastName || ''}`,
+      course: group.course?.name || 'N/A',
+      studentCount: group.students?.length || 0,
+      status: group.status,
+    }));
+
+    // 🔹 Natija
+    return {
+      statistics: {
+        totalGroups,
+        totalStudents,
+        activeCourses,
+        totalGroupsThisMonth,
+      },
+      groups: groupList,
+    };
+  }
 
   async searchGroups(name?: string, teacherName?: string): Promise<Group[]> {
     const qb = this.groupRepository

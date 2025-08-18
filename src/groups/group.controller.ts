@@ -99,13 +99,12 @@ async getGroupsByTeacher(@Req() req: any) {
     return this.groupsService.restoreStudentToGroup(+id, +studentId);
   }
 
-  @Roles('admin', 'teacher', 'student', 'superAdmin')
+@Roles('admin', 'teacher', 'student', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Get()
-  getAllGroupsForAdmin() {
-    return this.groupsService.getAllGroupsForAdmin();
+  async getAllGroupsForAdmin(@Query('search') search?: string) {
+    return this.groupsService.getAllGroupsForAdmin(search);
   }
-
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
   @Put(':id')
