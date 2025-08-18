@@ -486,7 +486,6 @@ export class AttendanceService {
 
   const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
 
-  // 🔹 Guruhlarni olish (bugungi kun uchun faol guruhlar)
   const groups = await this.groupRepository
     .createQueryBuilder('group')
     .where('group.status = :status', { status: 'active' })
@@ -568,6 +567,7 @@ export class AttendanceService {
     order: { createdAt: 'DESC' },
   });
 
+
   const attendancesList = attendances.map((a) => ({
     studentId: a.student.id,
     student: `${a.student.firstName} ${a.student.lastName}`,
@@ -579,8 +579,6 @@ export class AttendanceService {
     teacher: `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`,
     status: a.status,
   }));
-
-
 
   return {
     totalStudents,
