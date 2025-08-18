@@ -471,8 +471,7 @@ export class AttendanceService {
 
     return { currentCycle: { startDate, endDate }, isFirstCycle };
   }
-
-  async getDailyAttendanceStats(
+async getDailyAttendanceStats(
   groupId?: number,
   date?: string,
   period?: 'daily' | 'weekly' | 'monthly',
@@ -512,7 +511,8 @@ export class AttendanceService {
   let totalAttendances = 0;
   const allStudents: number[] = [];
   for (const group of groups) {
-    if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
+    // Faqat talabalari bor guruhlar hisobga olinadi
+    if (group.daysOfWeek && group.daysOfWeek.includes(currentDay) && group.students && group.students.length > 0) {
       totalAttendances += group.students.length;
       allStudents.push(...group.students.map(s => s.id));
     }
@@ -598,5 +598,4 @@ export class AttendanceService {
     attendances: attendancesList,
   };
 }
-
 }
