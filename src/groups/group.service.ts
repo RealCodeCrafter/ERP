@@ -240,7 +240,7 @@ export class GroupsService {
     return group.students;
   }
 
-  async getAllGroupsForAdmin(search?: string): Promise<any> {
+    async getAllGroupsForAdmin(search?: string): Promise<any> {
     // 🔹 Joriy oyni aniqlash
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
@@ -265,12 +265,14 @@ export class GroupsService {
       .orderBy('group.createdAt', 'DESC')
       .getMany();
 
-    // 🔹 Barcha guruhlar uchun statistika so‘rovi (kurslar uchun statusdan qat’i nazar)
+    // 🔹 Barcha guruhlar uchun statistika so‘rovi (jami talabalar uchun)
     const allGroupsForStats = await this.groupRepository
       .createQueryBuilder('group')
-      .leftJoinAndSelect('group.course', 'course')
       .leftJoinAndSelect('group.students', 'students')
       .getMany();
+
+    // 🔹 Barcha kurslar uchun so‘rov (faol kurslar uchun)
+    const allCourses = await this.courseRepository.find();
 
     // 🔹 Statistika hisoblash
     // Jami guruhlar (faqat active guruhlar)
@@ -279,8 +281,8 @@ export class GroupsService {
     // Jami talabalar (har guruhdagi talabalar soni yig‘indisi, noyob emas)
     const totalStudents = groups.reduce((sum, group) => sum + (group.students?.length || 0), 0);
 
-    // Faol kurslar (barcha yaratilgan kurslar, noyob)
-    const activeCourses = new Set(allGroupsForStats.map(group => group.course.id)).size;
+    // Faol kurslar (barcha yaratilgan kurslar soni)
+    const activeCourses = allCourses.length;
 
     // Bu oyda yaratilgan guruhlar (joriy oyda createdAt bo‘yicha, statusdan qat’i nazar)
     const groupsThisMonth = await this.groupRepository
