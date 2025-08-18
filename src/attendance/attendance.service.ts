@@ -472,74 +472,12 @@ export class AttendanceService {
     return { currentCycle: { startDate, endDate }, isFirstCycle };
   }
 
-  async getAttendanceReport(
-    groupId: number,
-    date?: string,
-    period?: 'daily' | 'weekly' | 'monthly',
-    studentName?: string,
-  ): Promise<{ attendances: any[] }> {
-    const group = await this.groupRepository.findOne({ where: { id: groupId, status: 'active' } });
-    if (!group) {
-      throw new NotFoundException(`Active group with ID ${groupId} not found`);
-    }
-
-    const query: any = {
-      lesson: { group: { id: groupId } },
-    };
-
-    if (date && period) {
-      const startDate = new Date(date);
-      if (isNaN(startDate.getTime())) {
-        throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
-      }
-      let endDate = new Date(startDate);
-
-      if (period === 'daily') {
-        endDate.setDate(startDate.getDate() + 1);
-      } else if (period === 'weekly') {
-        endDate.setDate(startDate.getDate() + 7);
-      } else if (period === 'monthly') {
-        endDate.setMonth(startDate.getMonth() + 1);
-      } else {
-        throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
-      }
-
-      query.lesson.lessonDate = Between(startDate, endDate);
-    }
-
-    // StudentName bo'yicha filtr
-    if (studentName && studentName.trim() !== '') {
-      query.student = [
-        { firstName: ILike(`%${studentName.trim()}%`) },
-        { lastName: ILike(`%${studentName.trim()}%`) },
-      ];
-    }
-
-    const attendances = await this.attendanceRepository.find({
-      where: query,
-      relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
-      order: { createdAt: 'DESC' },
-    });
-
-    const formattedAttendances = attendances.map((attendance) => ({
-      studentId: attendance.student.id,
-      student: `${attendance.student.firstName} ${attendance.student.lastName}`,
-      group: attendance.lesson.group.name,
-      course: attendance.lesson.group.course.name,
-      time: attendance.lesson.lessonDate
-        ? `${attendance.lesson.lessonDate.toISOString().split('T')[0]} ${attendance.lesson.group.startTime || 'N/A'}`
-        : 'N/A',
-      teacher: `${attendance.lesson.group.teacher.firstName} ${attendance.lesson.group.teacher.lastName}`,
-      status: attendance.status === 'present' ? 'present' : attendance.status === 'absent' ? 'absent' : 'late',
-    }));
-
-    return {
-      attendances: formattedAttendances,
-    };
-  }
-
-
-  async getDailyAttendanceStats(): Promise<any> {
+  async getDailyAttendanceStats(
+  groupId?: number,
+  date?: string,
+  period?: 'daily' | 'weekly' | 'monthly',
+  studentName?: string,
+): Promise<any> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -547,6 +485,7 @@ export class AttendanceService {
 
   const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
 
+  // 🔹 Guruhlarni olish
   const groups = await this.groupRepository
     .createQueryBuilder('group')
     .where('group.status = :status', { status: 'active' })
@@ -561,7 +500,6 @@ export class AttendanceService {
 
   let totalAttendances = 0;
   const allStudents: number[] = [];
-
   for (const group of groups) {
     if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
       totalAttendances += group.students.length;
@@ -571,25 +509,60 @@ export class AttendanceService {
 
   const totalStudents = new Set(allStudents).size;
 
-  const attendances = await this.attendanceRepository.find({
-    where: {
-      lesson: {
-        group: { id: In(groups.map(g => g.id)) },
-        lessonDate: Between(today, tomorrow),
-      },
+  // 🔹 Attendance query tuzamiz
+  const query: any = {
+    lesson: {
+      group: groupId ? { id: groupId } : { id: In(groups.map(g => g.id)) },
     },
-    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course'],
+  };
+
+  // Sana + period bo‘yicha filter
+  if (date && period) {
+    const startDate = new Date(date);
+    if (isNaN(startDate.getTime())) {
+      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+    }
+    let endDate = new Date(startDate);
+
+    if (period === 'daily') endDate.setDate(startDate.getDate() + 1);
+    else if (period === 'weekly') endDate.setDate(startDate.getDate() + 7);
+    else if (period === 'monthly') endDate.setMonth(startDate.getMonth() + 1);
+    else throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
+
+    query.lesson.lessonDate = Between(startDate, endDate);
+  } else {
+    // default: bugungi kun
+    query.lesson.lessonDate = Between(today, tomorrow);
+  }
+
+  // StudentName bo‘yicha filter
+  if (studentName && studentName.trim() !== '') {
+    query.student = [
+      { firstName: ILike(`%${studentName.trim()}%`) },
+      { lastName: ILike(`%${studentName.trim()}%`) },
+    ];
+  }
+
+  const attendances = await this.attendanceRepository.find({
+    where: query,
+    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
+    order: { createdAt: 'DESC' },
   });
 
   const present = attendances.filter(a => a.status === 'present').length;
   const absent = attendances.filter(a => a.status === 'absent').length;
   const late = attendances.filter(a => a.status === 'late').length;
 
+  // 🔹 Ro‘yxat
   const attendancesList = attendances.map((a) => ({
+    studentId: a.student.id,
     student: `${a.student.firstName} ${a.student.lastName}`,
     group: a.lesson.group.name,
-    lesson: a.lesson.group.course.name,
-    time: a.lesson.lessonDate.toISOString().split('T')[0],
+    course: a.lesson.group.course.name,
+    time: a.lesson.lessonDate
+      ? `${a.lesson.lessonDate.toISOString().split('T')[0]} ${a.lesson.group.startTime || 'N/A'}`
+      : 'N/A',
+    teacher: `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`,
     status: a.status,
   }));
 
@@ -599,9 +572,8 @@ export class AttendanceService {
     present,
     absent,
     late,
-    attendances: attendancesList
+    attendances: attendancesList,
   };
 }
-
 
 }

@@ -42,29 +42,22 @@ async getGroupsWithoutAttendance(@Query('date') date: string) {
     return this.attendanceService.getAttendanceStatistics(groupId);
   }
 
-  
   @Roles('admin', 'teacher', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('search/attendance')
-  async getAttendanceReport(
-    @Query('groupId') groupId: string,
-    @Query('date') date?: string,
-    @Query('period') period?: 'daily' | 'weekly' | 'monthly',
-    @Query('studentName') studentName?: string,
-  ) {
-    const groupIdNum = parseInt(groupId, 10);
-    if (isNaN(groupIdNum)) {
-      throw new BadRequestException('groupId must be a valid number');
-    }
-    return this.attendanceService.getAttendanceReport(groupIdNum, date, period, studentName);
-  }
-  @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get('daily-stats')
-  async getDailyAttendanceStats() {
-    return this.attendanceService.getDailyAttendanceStats();
-  }
-
+@UseGuards(AuthGuard, RolesGuard)
+@Get('search/daily-stats')
+async getDailyAttendanceStats(
+  @Query('groupId') groupId?: string,
+  @Query('date') date?: string,
+  @Query('period') period?: 'daily' | 'weekly' | 'monthly',
+  @Query('studentName') studentName?: string,
+) {
+  return this.attendanceService.getDailyAttendanceStats(
+    groupId ? parseInt(groupId, 10) : undefined,
+    date,
+    period,
+    studentName,
+  );
+}
 
   @Roles('teacher', 'admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
