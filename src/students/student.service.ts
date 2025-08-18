@@ -28,7 +28,7 @@ export class StudentsService {
     private readonly lessonRepository: Repository<Lesson>,
   ) {}
 
-    async getAllStudents(groupId?: number, paid?: boolean): Promise<any> {
+  async getAllStudents(groupId?: number, paid?: boolean): Promise<any> {
     // 🔹 Barcha guruhlar uchun talabalar sonini hisoblash (noyob emas)
     const allGroups = await this.groupRepository
       .createQueryBuilder('group')
@@ -60,13 +60,13 @@ export class StudentsService {
       if (paid) {
         // To‘lov qilganlar: `paid: true` bo‘lgan to‘lovlari bor
         studentsQuery = studentsQuery.andWhere(
-          'EXISTS (SELECT 1 FROM payment WHERE payment.studentId = student.id AND payment.paid = :paid)',
+          'EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = :paid)',
           { paid: true },
         );
       } else {
         // To‘lov qilmaganlar: hech qanday `paid: true` to‘lovi yo‘q
         studentsQuery = studentsQuery.andWhere(
-          'NOT EXISTS (SELECT 1 FROM payment WHERE payment.studentId = student.id AND payment.paid = :paid)',
+          'NOT EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = :paid)',
           { paid: true },
         );
       }
