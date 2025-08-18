@@ -248,6 +248,36 @@ export class GroupsService {
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
+    // 🔹 Barcha active guruhlar uchun statistika so‘rovi
+    const allGroupsForStats = await this.groupRepository
+      .createQueryBuilder('group')
+      .leftJoinAndSelect('group.students', 'students')
+      .where('group.status = :status', { status: 'active' })
+      .getMany();
+
+    // 🔹 Barcha kurslar uchun so‘rov (faol kurslar uchun)
+    const allCourses = await this.courseRepository.find();
+
+    // 🔹 Statistika hisoblash
+    // Jami guruhlar (faqat active guruhlar)
+    const totalGroups = allGroupsForStats.length;
+
+    // Jami talabalar (har guruhdagi talabalar soni yig‘indisi, noyob emas)
+    const totalStudents = allGroupsForStats.reduce((sum, group) => sum + (group.students?.length || 0), 0);
+
+    // Faol kurslar (barcha yaratilgan kurslar soni)
+    const activeCourses = allCourses.length;
+
+    // Bu oyda yaratilgan guruhlar (joriy oyda createdAt bo‘yicha, statusdan qat’i nazar)
+    const groupsThisMonth = await this.groupRepository
+      .createQueryBuilder('group')
+      .where('group.createdAt BETWEEN :monthStart AND :monthEnd', {
+        monthStart,
+        monthEnd,
+      })
+      .getMany();
+    const totalGroupsThisMonth = groupsThisMonth.length;
+
     // 🔹 Guruhlar ro‘yxati uchun so‘rov (faqat faol guruhlar)
     const groupsQuery = this.groupRepository
       .createQueryBuilder('group')
@@ -264,35 +294,6 @@ export class GroupsService {
     const groups = await groupsQuery
       .orderBy('group.createdAt', 'DESC')
       .getMany();
-
-    // 🔹 Barcha guruhlar uchun statistika so‘rovi (jami talabalar uchun)
-    const allGroupsForStats = await this.groupRepository
-      .createQueryBuilder('group')
-      .leftJoinAndSelect('group.students', 'students')
-      .getMany();
-
-    // 🔹 Barcha kurslar uchun so‘rov (faol kurslar uchun)
-    const allCourses = await this.courseRepository.find();
-
-    // 🔹 Statistika hisoblash
-    // Jami guruhlar (faqat active guruhlar)
-    const totalGroups = groups.length;
-
-    // Jami talabalar (har guruhdagi talabalar soni yig‘indisi, noyob emas)
-    const totalStudents = groups.reduce((sum, group) => sum + (group.students?.length || 0), 0);
-
-    // Faol kurslar (barcha yaratilgan kurslar soni)
-    const activeCourses = allCourses.length;
-
-    // Bu oyda yaratilgan guruhlar (joriy oyda createdAt bo‘yicha, statusdan qat’i nazar)
-    const groupsThisMonth = await this.groupRepository
-      .createQueryBuilder('group')
-      .where('group.createdAt BETWEEN :monthStart AND :monthEnd', {
-        monthStart,
-        monthEnd,
-      })
-      .getMany();
-    const totalGroupsThisMonth = groupsThisMonth.length;
 
     // 🔹 Guruhlar ro‘yxatini formatlash
     const groupList = groups.map(group => ({
