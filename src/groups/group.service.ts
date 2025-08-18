@@ -248,7 +248,7 @@ export class GroupsService {
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
-    // 🔹 Guruhlar so‘rovi
+    // 🔹 Guruhlar ro‘yxati uchun so‘rov (faqat faol guruhlar)
     const groupsQuery = this.groupRepository
       .createQueryBuilder('group')
       .leftJoinAndSelect('group.course', 'course')
@@ -265,22 +265,27 @@ export class GroupsService {
       .orderBy('group.createdAt', 'DESC')
       .getMany();
 
+    // 🔹 Barcha guruhlar uchun statistika so‘rovi (kurslar uchun statusdan qat’i nazar)
+    const allGroupsForStats = await this.groupRepository
+      .createQueryBuilder('group')
+      .leftJoinAndSelect('group.course', 'course')
+      .leftJoinAndSelect('group.students', 'students')
+      .getMany();
+
     // 🔹 Statistika hisoblash
-    // Jami guruhlar
+    // Jami guruhlar (faqat active guruhlar)
     const totalGroups = groups.length;
 
-    // Jami talabalar (noyob)
-    const allStudents = groups.flatMap(group => group.students.map(student => student.id));
-    const totalStudents = new Set(allStudents).size;
+    // Jami talabalar (har guruhdagi talabalar soni yig‘indisi, noyob emas)
+    const totalStudents = groups.reduce((sum, group) => sum + (group.students?.length || 0), 0);
 
-    // Faol kurslar (noyob kurslar soni)
-    const activeCourses = new Set(groups.map(group => group.course.id)).size;
+    // Faol kurslar (barcha yaratilgan kurslar, noyob)
+    const activeCourses = new Set(allGroupsForStats.map(group => group.course.id)).size;
 
-    // Bu oyda yaratilgan guruhlar (joriy oyda createdAt bo‘yicha)
+    // Bu oyda yaratilgan guruhlar (joriy oyda createdAt bo‘yicha, statusdan qat’i nazar)
     const groupsThisMonth = await this.groupRepository
       .createQueryBuilder('group')
-      .where('group.status = :status', { status: 'active' })
-      .andWhere('group.createdAt BETWEEN :monthStart AND :monthEnd', {
+      .where('group.createdAt BETWEEN :monthStart AND :monthEnd', {
         monthStart,
         monthEnd,
       })
