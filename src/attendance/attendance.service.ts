@@ -537,13 +537,9 @@ export class AttendanceService {
       attendances: formattedAttendances,
     };
   }
-async getDailyAttendanceStats(): Promise<{
-  totalStudents: number;       // asl unique studentlar
-  totalAttendances: number;    // jami yo‘qlama qilinishi kerak bo‘lgan
-  present: number;
-  absent: number;
-  late: number;
-}> {
+
+  
+  async getDailyAttendanceStats(): Promise<any> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -556,27 +552,25 @@ async getDailyAttendanceStats(): Promise<{
     .where('group.status = :status', { status: 'active' })
     .andWhere(':currentDay = ANY("group"."daysOfWeek")', { currentDay })
     .leftJoinAndSelect('group.students', 'students')
+    .leftJoinAndSelect('group.course', 'course')
     .getMany();
 
   if (groups.length === 0) {
-    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0 };
+    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
   }
 
-  // 🔹 Jami yo‘qlama qilinishi kerak bo‘lgan studentlar soni (dublikatlari bilan)
   let totalAttendances = 0;
   const allStudents: number[] = [];
 
   for (const group of groups) {
     if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
-      totalAttendances += group.students.length; // dublikatlari bilan
-      allStudents.push(...group.students.map(s => s.id)); // unique uchun yig‘ib qo‘yamiz
+      totalAttendances += group.students.length;
+      allStudents.push(...group.students.map(s => s.id));
     }
   }
 
-  // 🔹 Asl unique studentlar soni
   const totalStudents = new Set(allStudents).size;
 
-  // 🔹 Attendance yozuvlarini olish
   const attendances = await this.attendanceRepository.find({
     where: {
       lesson: {
@@ -584,21 +578,30 @@ async getDailyAttendanceStats(): Promise<{
         lessonDate: Between(today, tomorrow),
       },
     },
-    relations: ['student', 'lesson', 'lesson.group'],
+    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course'],
   });
 
-  // 🔹 Statuslarni hisoblash
   const present = attendances.filter(a => a.status === 'present').length;
   const absent = attendances.filter(a => a.status === 'absent').length;
   const late = attendances.filter(a => a.status === 'late').length;
 
+  const attendancesList = attendances.map((a) => ({
+    student: `${a.student.firstName} ${a.student.lastName}`,
+    group: a.lesson.group.name,
+    fan: a.lesson.group.course.name,
+    vaqt: a.lesson.lessonDate.toISOString().split('T')[0],
+    holat: a.status,
+  }));
+
   return {
-    totalStudents,     // asl unique studentlar
-    totalAttendances,  // dublikatlari bilan jami yo‘qlama
+    totalStudents,
+    totalAttendances,
     present,
     absent,
     late,
+    attendances: attendancesList
   };
 }
+
 
 }
