@@ -477,42 +477,32 @@ async getDailyAttendanceStats(
   period?: 'daily' | 'weekly' | 'monthly',
   studentName?: string,
 ): Promise<any> {
-  // 🔹 Bugungi sanani olish (soat 00:00:00 dan boshlanadi)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  // 🔹 Bugungi hafta kuni (masalan, "Monday")
   const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
 
-  // 🔹 Faol guruhlar bugungi kun uchun olinadi
-  const groupsQuery = this.groupRepository
+  // 🔹 Bugungi kun uchun faol guruhlarni olish
+  const groups = await this.groupRepository
     .createQueryBuilder('group')
     .where('group.status = :status', { status: 'active' })
     .andWhere(':currentDay = ANY("group"."daysOfWeek")', { currentDay })
     .leftJoinAndSelect('group.students', 'students')
     .leftJoinAndSelect('group.course', 'course')
-    .leftJoinAndSelect('group.teacher', 'teacher');
+    .leftJoinAndSelect('group.teacher', 'teacher')
+    .getMany();
 
-  // Agar groupId berilgan bo'lsa, guruhlarni shu bo'yicha filtrlaymiz
-  if (groupId) {
-    groupsQuery.andWhere('group.id = :groupId', { groupId });
-  }
-
-  const groups = await groupsQuery.getMany();
-
-  // 🔹 Agar guruhlar topilmasa, bo'sh natija qaytariladi
   if (groups.length === 0) {
     return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
   }
 
-  // 🔹 Bugungi kun uchun umumiy statistika: totalStudents va totalAttendances
+  // 🔹 Umumiy statistika: totalStudents va totalAttendances
   let totalAttendances = 0;
   const allStudents: number[] = [];
   for (const group of groups) {
-    // Faqat talabalari bor guruhlar hisobga olinadi
-    if (group.daysOfWeek && group.daysOfWeek.includes(currentDay) && group.students && group.students.length > 0) {
+    if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
       totalAttendances += group.students.length;
       allStudents.push(...group.students.map(s => s.id));
     }
@@ -536,38 +526,38 @@ async getDailyAttendanceStats(
   const absent = todayAttendances.filter(a => a.status === 'absent').length;
   const late = todayAttendances.filter(a => a.status === 'late').length;
 
-  // 🔹 Filtrlangan davomat ro'yxati
+  // 🔹 Filtrlangan davomat ro‘yxati
   const query: any = {
     lesson: {
       group: groupId ? { id: groupId } : { id: In(groups.map(g => g.id)) },
     },
   };
 
-  // Sana va period bo'yicha filtr (faqat davomat ro'yxati uchun)
+  // Sana + period bo‘yicha filter
   if (date && period) {
     const startDate = new Date(date);
     if (isNaN(startDate.getTime())) {
-      throw new BadRequestException('Noto‘g‘ri sana formati. YYYY-MM-DD dan foydalaning');
+      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
     }
     let endDate = new Date(startDate);
 
     if (period === 'daily') endDate.setDate(startDate.getDate() + 1);
     else if (period === 'weekly') endDate.setDate(startDate.getDate() + 7);
     else if (period === 'monthly') endDate.setMonth(startDate.getMonth() + 1);
-    else throw new BadRequestException('Noto‘g‘ri period. "daily", "weekly" yoki "monthly" ishlating');
+    else throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
 
     query.lesson.lessonDate = Between(startDate, endDate);
   } else {
-    // Agar filtr qo'llanmagan bo'lsa, davomat bugungi kun uchun
+    // default: bugungi kun
     query.lesson.lessonDate = Between(today, tomorrow);
   }
 
-  // Student ismi bo'yicha filtr
+  // StudentName bo‘yicha filter
   if (studentName && studentName.trim() !== '') {
-    query.student = {
-      firstName: ILike(`%${studentName.trim()}%`),
-      lastName: ILike(`%${studentName.trim()}%`),
-    };
+    query.student = [
+      { firstName: ILike(`%${studentName.trim()}%`) },
+      { lastName: ILike(`%${studentName.trim()}%`) },
+    ];
   }
 
   const attendances = await this.attendanceRepository.find({
@@ -576,7 +566,6 @@ async getDailyAttendanceStats(
     order: { createdAt: 'DESC' },
   });
 
-  // 🔹 Davomat ro'yxatini formatlash
   const attendancesList = attendances.map((a) => ({
     studentId: a.student.id,
     student: `${a.student.firstName} ${a.student.lastName}`,
@@ -585,7 +574,9 @@ async getDailyAttendanceStats(
     time: a.lesson.lessonDate
       ? `${a.lesson.lessonDate.toISOString().split('T')[0]} ${a.lesson.group.startTime || 'N/A'}`
       : 'N/A',
-    teacher: `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`,
+    teacher: a.lesson.group.teacher
+      ? `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`
+      : 'N/A',
     status: a.status,
   }));
 
