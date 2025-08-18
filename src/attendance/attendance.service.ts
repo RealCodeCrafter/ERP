@@ -538,7 +538,7 @@ export class AttendanceService {
     };
   }
 
-  
+
   async getDailyAttendanceStats(): Promise<any> {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -588,9 +588,9 @@ export class AttendanceService {
   const attendancesList = attendances.map((a) => ({
     student: `${a.student.firstName} ${a.student.lastName}`,
     group: a.lesson.group.name,
-    fan: a.lesson.group.course.name,
-    vaqt: a.lesson.lessonDate.toISOString().split('T')[0],
-    holat: a.status,
+    lesson: a.lesson.group.course.name,
+    time: a.lesson.lessonDate.toISOString().split('T')[0],
+    status: a.status,
   }));
 
   return {
