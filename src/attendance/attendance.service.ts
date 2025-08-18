@@ -472,6 +472,7 @@ export class AttendanceService {
     return { currentCycle: { startDate, endDate }, isFirstCycle };
   }
 
+
   async getDailyAttendanceStats(
   groupId?: number,
   date?: string,
@@ -485,19 +486,21 @@ export class AttendanceService {
 
   const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
 
-  // 🔹 Guruhlarni olish
+  // 🔹 Guruhlarni olish (bugungi kun uchun faol guruhlar)
   const groups = await this.groupRepository
     .createQueryBuilder('group')
     .where('group.status = :status', { status: 'active' })
     .andWhere(':currentDay = ANY("group"."daysOfWeek")', { currentDay })
     .leftJoinAndSelect('group.students', 'students')
     .leftJoinAndSelect('group.course', 'course')
+    .leftJoinAndSelect('group.teacher', 'teacher')
     .getMany();
 
   if (groups.length === 0) {
     return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
   }
 
+  // 🔹 Umumiy statistika: totalStudents va totalAttendances
   let totalAttendances = 0;
   const allStudents: number[] = [];
   for (const group of groups) {
@@ -506,10 +509,26 @@ export class AttendanceService {
       allStudents.push(...group.students.map(s => s.id));
     }
   }
-
   const totalStudents = new Set(allStudents).size;
 
-  // 🔹 Attendance query tuzamiz
+  // 🔹 Bugungi kun uchun davomat statistikasi (present, absent, late)
+  const todayAttendanceQuery = {
+    lesson: {
+      lessonDate: Between(today, tomorrow),
+      group: { id: In(groups.map(g => g.id)) },
+    },
+  };
+
+  const todayAttendances = await this.attendanceRepository.find({
+    where: todayAttendanceQuery,
+    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
+  });
+
+  const present = todayAttendances.filter(a => a.status === 'present').length;
+  const absent = todayAttendances.filter(a => a.status === 'absent').length;
+  const late = todayAttendances.filter(a => a.status === 'late').length;
+
+  // 🔹 Filtrlangan davomat ro‘yxati
   const query: any = {
     lesson: {
       group: groupId ? { id: groupId } : { id: In(groups.map(g => g.id)) },
@@ -548,10 +567,6 @@ export class AttendanceService {
     relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
     order: { createdAt: 'DESC' },
   });
-
-  const present = attendances.filter(a => a.status === 'present').length;
-  const absent = attendances.filter(a => a.status === 'absent').length;
-  const late = attendances.filter(a => a.status === 'late').length;
 
   // 🔹 Ro‘yxat
   const attendancesList = attendances.map((a) => ({
