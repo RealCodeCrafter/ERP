@@ -568,7 +568,6 @@ export class AttendanceService {
     order: { createdAt: 'DESC' },
   });
 
-  // 🔹 Ro‘yxat
   const attendancesList = attendances.map((a) => ({
     studentId: a.student.id,
     student: `${a.student.firstName} ${a.student.lastName}`,
@@ -580,6 +579,8 @@ export class AttendanceService {
     teacher: `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`,
     status: a.status,
   }));
+
+
 
   return {
     totalStudents,
