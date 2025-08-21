@@ -511,8 +511,8 @@ async getDailyAttendanceStats(
 
   // 🔹 Bugungi kun uchun davomat statistikasi (present, absent, late)
   const todayAttendanceQuery = {
+    createdAt: Between(today, tomorrow),
     lesson: {
-      lessonDate: Between(today, tomorrow),
       group: { id: In(groups.map(g => g.id)) },
     },
   };
@@ -531,6 +531,7 @@ async getDailyAttendanceStats(
     lesson: {
       group: groupId ? { id: groupId } : { id: In(groups.map(g => g.id)) },
     },
+    createdAt: Between(today, tomorrow),
   };
 
   // Sana + period bo‘yicha filter
@@ -546,10 +547,8 @@ async getDailyAttendanceStats(
     else if (period === 'monthly') endDate.setMonth(startDate.getMonth() + 1);
     else throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
 
-    query.lesson.lessonDate = Between(startDate, endDate);
-  } else {
-    // default: bugungi kun
-    query.lesson.lessonDate = Between(today, tomorrow);
+    query.createdAt = Between(startDate, endDate);
+    delete query.lesson.lessonDate;
   }
 
   // StudentName bo‘yicha filter
@@ -589,4 +588,5 @@ async getDailyAttendanceStats(
     attendances: attendancesList,
   };
 }
+
 }
