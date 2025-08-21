@@ -1,6 +1,6 @@
 import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository, ILike, In, Raw } from 'typeorm';
+import { Between, Repository, ILike, In, Raw, FindOptionsWhere } from 'typeorm';
 import { Attendance } from './entities/attendance.entity';
 import { CreateAttendanceDto } from './dto/create-attendance.dto';
 import { UpdateAttendanceDto } from './dto/update-attendance.dto';
@@ -471,118 +471,118 @@ export class AttendanceService {
 
     return { currentCycle: { startDate, endDate }, isFirstCycle };
   }
-async getDailyAttendanceStats(
-  groupId?: number,
-  date?: string,
-  period?: 'daily' | 'weekly' | 'monthly',
-  studentName?: string,
-): Promise<any> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  // 🔹 Bugungi kun uchun davomatlarni olish
-  const todayAttendanceQuery = {
-    createdAt: Between(today, tomorrow),
-    lesson: {
-      group: { status: 'active' },
-    },
-  };
+    async getDailyAttendanceStats(
+    groupId?: number,
+    date?: string,
+    period?: 'daily' | 'weekly' | 'monthly',
+    studentName?: string,
+  ): Promise<any> {
+    const today = moment().utcOffset('+05:00').startOf('day').toDate();
+    const tomorrow = moment(today).add(1, 'day').toDate();
 
-  if (groupId) {
-    todayAttendanceQuery.lesson.group.id = groupId;
-  }
+    // 🔹 Bugungi kun uchun davomatlarni olish
+    const todayAttendanceQuery: FindOptionsWhere<Attendance> = {
+      createdAt: Between(today, tomorrow),
+      lesson: {
+        group: { status: 'active' as const },
+      },
+    };
 
-  const todayAttendances = await this.attendanceRepository.find({
-    where: todayAttendanceQuery,
-    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
-  });
-
-  if (todayAttendances.length === 0) {
-    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
-  }
-
-  // 🔹 Faqat bugungi davomatlarda ishtirok etgan guruhlar va studentlarni aniqlash
-  const groupIds = [...new Set(todayAttendances.map(a => a.lesson.group.id))];
-  const groups = await this.groupRepository
-    .createQueryBuilder('group')
-    .where('group.id IN (:...groupIds)', { groupIds })
-    .leftJoinAndSelect('group.students', 'students')
-    .leftJoinAndSelect('group.course', 'course')
-    .leftJoinAndSelect('group.teacher', 'teacher')
-    .getMany();
-
-  // 🔹 Umumiy statistika: totalStudents va totalAttendances
-  const allStudents = new Set(todayAttendances.map(a => a.student.id));
-  const totalStudents = allStudents.size;
-  const totalAttendances = todayAttendances.length;
-
-  // 🔹 Davomat statistikasi (present, absent, late)
-  const present = todayAttendances.filter(a => a.status === 'present').length;
-  const absent = todayAttendances.filter(a => a.status === 'absent').length;
-  const late = todayAttendances.filter(a => a.status === 'late').length;
-
-  // 🔹 Filtrlangan davomat ro‘yxati
-  const query: any = {
-    createdAt: Between(today, tomorrow),
-    lesson: {
-      group: groupId ? { id: groupId } : { id: In(groupIds) },
-    },
-  };
-
-  // Sana + period bo‘yicha filter
-  if (date && period) {
-    const startDate = new Date(date);
-    if (isNaN(startDate.getTime())) {
-      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+    // groupId mavjud bo‘lsa, uni to‘g‘ri qo‘shish
+    if (groupId) {
+      todayAttendanceQuery.lesson = {
+        group: {
+          id: groupId,
+          status: 'active' as const,
+        },
+      };
     }
-    let endDate = new Date(startDate);
 
-    if (period === 'daily') endDate.setDate(startDate.getDate() + 1);
-    else if (period === 'weekly') endDate.setDate(startDate.getDate() + 7);
-    else if (period === 'monthly') endDate.setMonth(startDate.getMonth() + 1);
-    else throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
+    const todayAttendances = await this.attendanceRepository.find({
+      where: todayAttendanceQuery,
+      relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
+    });
 
-    query.createdAt = Between(startDate, endDate);
+    if (todayAttendances.length === 0) {
+      return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
+    }
+
+    // 🔹 Faqat bugungi davomatlarda ishtirok etgan guruhlar va studentlar
+    const groupIds = [...new Set(todayAttendances.map(a => a.lesson.group.id))];
+    const groups = await this.groupRepository
+      .createQueryBuilder('group')
+      .where('group.id IN (:...groupIds)', { groupIds })
+      .leftJoinAndSelect('group.students', 'students')
+      .leftJoinAndSelect('group.course', 'course')
+      .leftJoinAndSelect('group.teacher', 'teacher')
+      .getMany();
+
+    // 🔹 Umumiy statistika
+    const allStudents = new Set(todayAttendances.map(a => a.student.id));
+    const totalStudents = allStudents.size;
+    const totalAttendances = todayAttendances.length;
+    const present = todayAttendances.filter(a => a.status === 'present').length;
+    const absent = todayAttendances.filter(a => a.status === 'absent').length;
+    const late = todayAttendances.filter(a => a.status === 'late').length;
+
+    // 🔹 Filtrlangan davomat ro‘yxati
+    const query: FindOptionsWhere<Attendance> = {
+      createdAt: Between(today, tomorrow),
+      lesson: {
+        group: groupId ? { id: groupId } : { id: In(groupIds) },
+      },
+    };
+
+    if (date && period) {
+      const startDate = moment(date, 'YYYY-MM-DD').startOf('day');
+      if (!startDate.isValid()) {
+        throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+      }
+      let endDate = startDate.clone();
+
+      if (period === 'daily') endDate.add(1, 'day');
+      else if (period === 'weekly') endDate.add(7, 'days');
+      else if (period === 'monthly') endDate.add(1, 'month');
+      else throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
+
+      query.createdAt = Between(startDate.toDate(), endDate.toDate());
+    }
+
+    if (studentName && studentName.trim() !== '') {
+      query.student = [
+        { firstName: ILike(`%${studentName.trim()}%`) },
+        { lastName: ILike(`%${studentName.trim()}%`) },
+      ];
+    }
+
+    const attendances = await this.attendanceRepository.find({
+      where: query,
+      relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
+      order: { createdAt: 'DESC' },
+    });
+
+    const attendancesList = attendances.map((a) => ({
+      studentId: a.student.id,
+      student: `${a.student.firstName} ${a.student.lastName}`,
+      group: a.lesson.group.name,
+      course: a.lesson.group.course.name,
+      time: a.lesson.lessonDate
+        ? `${a.lesson.lessonDate.toISOString().split('T')[0]} ${a.lesson.group.startTime || 'N/A'}`
+        : 'N/A',
+      teacher: a.lesson.group.teacher
+        ? `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`
+        : 'N/A',
+      status: a.status,
+    }));
+
+    return {
+      totalStudents,
+      totalAttendances,
+      present,
+      absent,
+      late,
+      attendances: attendancesList,
+    };
   }
-
-  // StudentName bo‘yicha filter
-  if (studentName && studentName.trim() !== '') {
-    query.student = [
-      { firstName: ILike(`%${studentName.trim()}%`) },
-      { lastName: ILike(`%${studentName.trim()}%`) },
-    ];
-  }
-
-  const attendances = await this.attendanceRepository.find({
-    where: query,
-    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
-    order: { createdAt: 'DESC' },
-  });
-
-  const attendancesList = attendances.map((a) => ({
-    studentId: a.student.id,
-    student: `${a.student.firstName} ${a.student.lastName}`,
-    group: a.lesson.group.name,
-    course: a.lesson.group.course.name,
-    time: a.lesson.lessonDate
-      ? `${a.lesson.lessonDate.toISOString().split('T')[0]} ${a.lesson.group.startTime || 'N/A'}`
-      : 'N/A',
-    teacher: a.lesson.group.teacher
-      ? `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`
-      : 'N/A',
-    status: a.status,
-  }));
-
-  return {
-    totalStudents,
-    totalAttendances,
-    present,
-    absent,
-    late,
-    attendances: attendancesList,
-  };
-}
-  
 }
