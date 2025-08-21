@@ -482,51 +482,53 @@ async getDailyAttendanceStats(
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  // 🔹 Bugungi kun uchun barcha faol guruhlarni olish
-  const groups = await this.groupRepository
-    .createQueryBuilder('group')
-    .where('group.status = :status', { status: 'active' })
-    .leftJoinAndSelect('group.students', 'students')
-    .leftJoinAndSelect('group.course', 'course')
-    .leftJoinAndSelect('group.teacher', 'teacher')
-    .getMany();
-
-  if (groups.length === 0) {
-    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
-  }
-
-  // 🔹 Umumiy statistika: totalStudents va totalAttendances
-  let totalAttendances = 0;
-  const allStudents: number[] = [];
-  for (const group of groups) {
-    totalAttendances += group.students.length;
-    allStudents.push(...group.students.map(s => s.id));
-  }
-  const totalStudents = new Set(allStudents).size;
-
-  // 🔹 Bugungi kun uchun davomat statistikasi (present, absent, late)
+  // 🔹 Bugungi kun uchun davomatlarni olish
   const todayAttendanceQuery = {
     createdAt: Between(today, tomorrow),
     lesson: {
-      group: { id: In(groups.map(g => g.id)) },
+      group: { status: 'active' },
     },
   };
+
+  if (groupId) {
+    todayAttendanceQuery.lesson.group.id = groupId;
+  }
 
   const todayAttendances = await this.attendanceRepository.find({
     where: todayAttendanceQuery,
     relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
   });
 
+  if (todayAttendances.length === 0) {
+    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
+  }
+
+  // 🔹 Faqat bugungi davomatlarda ishtirok etgan guruhlar va studentlarni aniqlash
+  const groupIds = [...new Set(todayAttendances.map(a => a.lesson.group.id))];
+  const groups = await this.groupRepository
+    .createQueryBuilder('group')
+    .where('group.id IN (:...groupIds)', { groupIds })
+    .leftJoinAndSelect('group.students', 'students')
+    .leftJoinAndSelect('group.course', 'course')
+    .leftJoinAndSelect('group.teacher', 'teacher')
+    .getMany();
+
+  // 🔹 Umumiy statistika: totalStudents va totalAttendances
+  const allStudents = new Set(todayAttendances.map(a => a.student.id));
+  const totalStudents = allStudents.size;
+  const totalAttendances = todayAttendances.length;
+
+  // 🔹 Davomat statistikasi (present, absent, late)
   const present = todayAttendances.filter(a => a.status === 'present').length;
   const absent = todayAttendances.filter(a => a.status === 'absent').length;
   const late = todayAttendances.filter(a => a.status === 'late').length;
 
   // 🔹 Filtrlangan davomat ro‘yxati
   const query: any = {
-    lesson: {
-      group: groupId ? { id: groupId } : { id: In(groups.map(g => g.id)) },
-    },
     createdAt: Between(today, tomorrow),
+    lesson: {
+      group: groupId ? { id: groupId } : { id: In(groupIds) },
+    },
   };
 
   // Sana + period bo‘yicha filter
@@ -543,7 +545,6 @@ async getDailyAttendanceStats(
     else throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
 
     query.createdAt = Between(startDate, endDate);
-    delete query.lesson.lessonDate;
   }
 
   // StudentName bo‘yicha filter
