@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Lesson } from './entities/lesson.entity';
@@ -33,8 +33,7 @@ export class LessonsService {
     return user;
   }
 
-  
-  async create(userId: number, lessonData: CreateLessonDto): Promise<Lesson> {
+  async create(userId: number, lessonData: CreateLessonDto) {
     const user = await this.getUserById(userId);
 
     const group = await this.groupRepository.findOne({
@@ -44,9 +43,8 @@ export class LessonsService {
 
     if (!group) throw new NotFoundException('Group not found');
 
-    // Faqat teacher dars yarata oladi
-    if (!('firstName' in user) || group.teacher?.id !== user.id) {
-      throw new ForbiddenException('Only the assigned teacher can create a lesson for this group');
+    if (group.teacher?.id !== user.id) {
+      throw new ForbiddenException('You are not assigned to this group');
     }
 
     // Guruhdagi mavjud darslar sonini hisoblash
@@ -54,50 +52,51 @@ export class LessonsService {
       where: { group: { id: lessonData.groupId } },
     });
 
-    // Joriy sanani va vaqtni olish (Toshkent vaqti, UTC+05:00)
+    // Joriy sanani guruhning daysOfWeek asosida aniqlash
     const now = moment().utcOffset('+05:00');
     const targetDate = now.clone().startOf('day');
     const dayOfWeek = now.format('dddd');
 
-    // Bugun guruhning dars kuni ekanligini tekshirish
+    // Agar bugun guruhning dars kuni bo'lmasa, eng yaqin dars kunini topish
     if (!group.daysOfWeek.includes(dayOfWeek)) {
-      throw new BadRequestException(
-        `Today (${dayOfWeek}) is not a valid lesson day for group ${group.name}. Valid days: ${group.daysOfWeek.join(', ')}`,
-      );
+      let found = false;
+      let nextDate = now.clone();
+      for (let i = 0; i < 7; i++) {
+        nextDate.add(1, 'day');
+        if (group.daysOfWeek.includes(nextDate.format('dddd'))) {
+          found = true;
+          targetDate.set({ year: nextDate.year(), month: nextDate.month(), date: nextDate.date() });
+          break;
+        }
+      }
+      if (!found) {
+        throw new NotFoundException('No valid lesson day found for this group');
+      }
     }
 
-    // lessonDate ni joriy vaqt sifatida o‘rnatish
-    const lessonDate = now.toDate();
+    // lessonDate va endDate ni guruhning startTime va endTime asosida hisoblash
+    const lessonDate = moment(
+      `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
+      'YYYY-MM-DD HH:mm',
+    ).utcOffset('+05:00');
 
-    // endDate ni guruhning endTime asosida hisoblash
     let endDate: Date | null = null;
     if (group.startTime && group.endTime) {
-      const startTime = moment(`${targetDate.format('YYYY-MM-DD')} ${group.startTime}`, 'YYYY-MM-DD HH:mm').utcOffset('+05:00');
-      const endTime = moment(`${targetDate.format('YYYY-MM-DD')} ${group.endTime}`, 'YYYY-MM-DD HH:mm').utcOffset('+05:00');
+      endDate = moment(
+        `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
+        'YYYY-MM-DD HH:mm',
+      ).utcOffset('+05:00').toDate();
 
-      // Agar joriy vaqt startTime dan oldin bo‘lsa, dars yaratishni rad etish
-      if (now.isBefore(startTime)) {
-        throw new BadRequestException(
-          `Lesson cannot be created before the group's start time (${group.startTime}) on ${targetDate.format('YYYY-MM-DD')}`,
-        );
+      // Agar endDate lessonDate dan oldin bo'lsa, keyingi kunga o'tkazish
+      if (moment(endDate).isBefore(lessonDate)) {
+        endDate = moment(endDate).add(1, 'day').toDate();
       }
-
-      // endDate ni endTime asosida o‘rnatish
-      endDate = endTime.toDate();
-
-      // Agar endTime joriy vaqtdan oldin bo‘lsa, keyingi kunga o‘tkazish
-      if (moment(endDate).isBefore(now)) {
-        endDate = moment(endTime).add(1, 'day').toDate();
-      }
-    } else {
-      // Agar startTime yoki endTime bo‘lmasa, default 2 soatlik dars davomiyligi
-      endDate = moment(now).add(2, 'hours').toDate();
     }
 
     const lesson = this.lessonRepository.create({
       lessonName: lessonData.lessonName,
       lessonNumber: lessonCount + 1,
-      lessonDate,
+      lessonDate: lessonDate.toDate(),
       endDate,
       group,
     });
