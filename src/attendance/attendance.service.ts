@@ -482,13 +482,10 @@ async getDailyAttendanceStats(
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const currentDay = today.toLocaleString('en-US', { weekday: 'long' });
-
-  // 🔹 Bugungi kun uchun faol guruhlarni olish
+  // 🔹 Bugungi kun uchun barcha faol guruhlarni olish
   const groups = await this.groupRepository
     .createQueryBuilder('group')
     .where('group.status = :status', { status: 'active' })
-    .andWhere(':currentDay = ANY("group"."daysOfWeek")', { currentDay })
     .leftJoinAndSelect('group.students', 'students')
     .leftJoinAndSelect('group.course', 'course')
     .leftJoinAndSelect('group.teacher', 'teacher')
@@ -502,10 +499,8 @@ async getDailyAttendanceStats(
   let totalAttendances = 0;
   const allStudents: number[] = [];
   for (const group of groups) {
-    if (group.daysOfWeek && group.daysOfWeek.includes(currentDay)) {
-      totalAttendances += group.students.length;
-      allStudents.push(...group.students.map(s => s.id));
-    }
+    totalAttendances += group.students.length;
+    allStudents.push(...group.students.map(s => s.id));
   }
   const totalStudents = new Set(allStudents).size;
 
@@ -588,5 +583,5 @@ async getDailyAttendanceStats(
     attendances: attendancesList,
   };
 }
-
+  
 }
