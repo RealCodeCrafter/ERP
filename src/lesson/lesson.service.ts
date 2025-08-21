@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Lesson } from './entities/lesson.entity';
@@ -33,7 +33,7 @@ export class LessonsService {
     return user;
   }
 
-  async create(userId: number, lessonData: CreateLessonDto) {
+  async create(userId: number, lessonData: CreateLessonDto): Promise<Lesson> {
     const user = await this.getUserById(userId);
 
     const group = await this.groupRepository.findOne({
@@ -43,8 +43,9 @@ export class LessonsService {
 
     if (!group) throw new NotFoundException('Group not found');
 
-    if (group.teacher?.id !== user.id) {
-      throw new ForbiddenException('You are not assigned to this group');
+    // Faqat teacher dars yarata oladi
+    if (!('firstName' in user) || group.teacher?.id !== user.id) {
+      throw new ForbiddenException('Only the assigned teacher can create a lesson for this group');
     }
 
     // Guruhdagi mavjud darslar sonini hisoblash
@@ -52,51 +53,41 @@ export class LessonsService {
       where: { group: { id: lessonData.groupId } },
     });
 
-    // Joriy sanani guruhning daysOfWeek asosida aniqlash
+    // Joriy sanani va vaqtni olish (Toshkent vaqti, UTC+05:00)
     const now = moment().utcOffset('+05:00');
     const targetDate = now.clone().startOf('day');
     const dayOfWeek = now.format('dddd');
 
-    // Agar bugun guruhning dars kuni bo'lmasa, eng yaqin dars kunini topish
+    // Bugun guruhning dars kuni ekanligini tekshirish
     if (!group.daysOfWeek.includes(dayOfWeek)) {
-      let found = false;
-      let nextDate = now.clone();
-      for (let i = 0; i < 7; i++) {
-        nextDate.add(1, 'day');
-        if (group.daysOfWeek.includes(nextDate.format('dddd'))) {
-          found = true;
-          targetDate.set({ year: nextDate.year(), month: nextDate.month(), date: nextDate.date() });
-          break;
-        }
-      }
-      if (!found) {
-        throw new NotFoundException('No valid lesson day found for this group');
-      }
+      throw new BadRequestException(
+        `Today (${dayOfWeek}) is not a valid lesson day for group ${group.name}. Valid days: ${group.daysOfWeek.join(', ')}`,
+      );
     }
 
-    // lessonDate va endDate ni guruhning startTime va endTime asosida hisoblash
-    const lessonDate = moment(
-      `${targetDate.format('YYYY-MM-DD')} ${group.startTime}`,
-      'YYYY-MM-DD HH:mm',
-    ).utcOffset('+05:00');
+    // lessonDate ni joriy vaqt sifatida o‘rnatish
+    const lessonDate = now.toDate();
 
+    // endDate ni guruhning startTime va endTime asosida hisoblash
     let endDate: Date | null = null;
     if (group.startTime && group.endTime) {
-      endDate = moment(
-        `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
-        'YYYY-MM-DD HH:mm',
-      ).utcOffset('+05:00').toDate();
+      const startTime = moment(`${targetDate.format('YYYY-MM-DD')} ${group.startTime}`, 'YYYY-MM-DD HH:mm').utcOffset('+05:00');
+      const endTime = moment(`${targetDate.format('YYYY-MM-DD')} ${group.endTime}`, 'YYYY-MM-DD HH:mm').utcOffset('+05:00');
 
-      // Agar endDate lessonDate dan oldin bo'lsa, keyingi kunga o'tkazish
-      if (moment(endDate).isBefore(lessonDate)) {
-        endDate = moment(endDate).add(1, 'day').toDate();
-      }
+      // Dars davomiyligini hisoblash (soatlarda)
+      const duration = endTime.diff(startTime, 'hours', true);
+
+      // endDate ni lessonDate ga davomiylik qo‘shib hisoblash
+      endDate = moment(lessonDate).add(duration, 'hours').toDate();
+    } else {
+      // Agar startTime yoki endTime bo‘lmasa, default 2 soatlik dars davomiyligi
+      endDate = moment(lessonDate).add(2, 'hours').toDate();
     }
 
     const lesson = this.lessonRepository.create({
       lessonName: lessonData.lessonName,
       lessonNumber: lessonCount + 1,
-      lessonDate: lessonDate.toDate(),
+      lessonDate,
       endDate,
       group,
     });
