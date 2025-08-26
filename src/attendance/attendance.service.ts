@@ -472,117 +472,97 @@ export class AttendanceService {
     return { currentCycle: { startDate, endDate }, isFirstCycle };
   }
 
-    async getDailyAttendanceStats(
-    groupId?: number,
-    date?: string,
-    period?: 'daily' | 'weekly' | 'monthly',
-    studentName?: string,
-  ): Promise<any> {
-    const today = moment().utcOffset('+05:00').startOf('day').toDate();
-    const tomorrow = moment(today).add(1, 'day').toDate();
+  async getDailyAttendanceStats(
+  groupId?: number,
+  date?: string,
+  period?: 'daily' | 'weekly' | 'monthly',
+  studentName?: string,
+): Promise<any> {
+  const moment = require('moment');
+  let startDate = moment().utcOffset('+05:00').startOf('day');
+  let endDate = startDate.clone().add(1, 'day');
 
-    // 🔹 Bugungi kun uchun davomatlarni olish
-    const todayAttendanceQuery: FindOptionsWhere<Attendance> = {
-      createdAt: Between(today, tomorrow),
-      lesson: {
-        group: { status: 'active' as const },
-      },
-    };
-
-    // groupId mavjud bo‘lsa, uni to‘g‘ri qo‘shish
-    if (groupId) {
-      todayAttendanceQuery.lesson = {
-        group: {
-          id: groupId,
-          status: 'active' as const,
-        },
-      };
+  // Filtr bo'yicha sana diapazonini aniqlash
+  if (date && period) {
+    startDate = moment(date, 'YYYY-MM-DD').startOf('day');
+    if (!startDate.isValid()) {
+      throw new BadRequestException('Sana formati noto‘g‘ri. YYYY-MM-DD formatidan foydalaning');
     }
-
-    const todayAttendances = await this.attendanceRepository.find({
-      where: todayAttendanceQuery,
-      relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
-    });
-
-    if (todayAttendances.length === 0) {
-      return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
-    }
-
-    // 🔹 Faqat bugungi davomatlarda ishtirok etgan guruhlar va studentlar
-    const groupIds = [...new Set(todayAttendances.map(a => a.lesson.group.id))];
-    const groups = await this.groupRepository
-      .createQueryBuilder('group')
-      .where('group.id IN (:...groupIds)', { groupIds })
-      .leftJoinAndSelect('group.students', 'students')
-      .leftJoinAndSelect('group.course', 'course')
-      .leftJoinAndSelect('group.teacher', 'teacher')
-      .getMany();
-
-    // 🔹 Umumiy statistika
-    const allStudents = new Set(todayAttendances.map(a => a.student.id));
-    const totalStudents = allStudents.size;
-    const totalAttendances = todayAttendances.length;
-    const present = todayAttendances.filter(a => a.status === 'present').length;
-    const absent = todayAttendances.filter(a => a.status === 'absent').length;
-    const late = todayAttendances.filter(a => a.status === 'late').length;
-
-    // 🔹 Filtrlangan davomat ro‘yxati
-    const query: FindOptionsWhere<Attendance> = {
-      createdAt: Between(today, tomorrow),
-      lesson: {
-        group: groupId ? { id: groupId } : { id: In(groupIds) },
-      },
-    };
-
-    if (date && period) {
-      const startDate = moment(date, 'YYYY-MM-DD').startOf('day');
-      if (!startDate.isValid()) {
-        throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
-      }
-      let endDate = startDate.clone();
-
-      if (period === 'daily') endDate.add(1, 'day');
-      else if (period === 'weekly') endDate.add(7, 'days');
-      else if (period === 'monthly') endDate.add(1, 'month');
-      else throw new BadRequestException('Invalid period. Use "daily", "weekly", or "monthly"');
-
-      query.createdAt = Between(startDate.toDate(), endDate.toDate());
-    }
-
-    if (studentName && studentName.trim() !== '') {
-      query.student = [
-        { firstName: ILike(`%${studentName.trim()}%`) },
-        { lastName: ILike(`%${studentName.trim()}%`) },
-      ];
-    }
-
-    const attendances = await this.attendanceRepository.find({
-      where: query,
-      relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
-      order: { createdAt: 'DESC' },
-    });
-
-    const attendancesList = attendances.map((a) => ({
-      studentId: a.student.id,
-      student: `${a.student.firstName} ${a.student.lastName}`,
-      group: a.lesson.group.name,
-      course: a.lesson.group.course.name,
-      time: a.lesson.lessonDate
-        ? `${a.lesson.lessonDate.toISOString().split('T')[0]} ${a.lesson.group.startTime || 'N/A'}`
-        : 'N/A',
-      teacher: a.lesson.group.teacher
-        ? `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`
-        : 'N/A',
-      status: a.status,
-    }));
-
-    return {
-      totalStudents,
-      totalAttendances,
-      present,
-      absent,
-      late,
-      attendances: attendancesList,
-    };
+    endDate = startDate.clone();
+    if (period === 'daily') endDate.add(1, 'day');
+    else if (period === 'weekly') endDate.add(7, 'days');
+    else if (period === 'monthly') endDate.add(1, 'month');
+    else throw new BadRequestException('Noto‘g‘ri davr. "daily", "weekly" yoki "monthly" dan foydalaning');
   }
+
+  // Umumiy so'rov
+  const query: FindOptionsWhere<Attendance> = {
+    createdAt: Between(startDate.toDate(), endDate.toDate()),
+    lesson: {
+      group: {
+        status: 'active' as const,
+        ...(groupId && { id: groupId }), // groupId ni shu yerda qo'shamiz
+      },
+    },
+  };
+
+  if (studentName && studentName.trim() !== '') {
+    query.student = [
+      { firstName: ILike(`%${studentName.trim()}%`) },
+      { lastName: ILike(`%${studentName.trim()}%`) },
+    ];
+  }
+
+  const attendances = await this.attendanceRepository.find({
+    where: query,
+    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
+    order: { createdAt: 'DESC' },
+  });
+
+  if (!attendances.length) {
+    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
+  }
+
+  // Guruhlar va statistika
+  const groupIds = [...new Set(attendances.map(a => a.lesson.group.id))];
+  const groups = await this.groupRepository
+    .createQueryBuilder('group')
+    .where('group.id IN (:...groupIds)', { groupIds })
+    .leftJoinAndSelect('group.students', 'students')
+    .leftJoinAndSelect('group.course', 'course')
+    .leftJoinAndSelect('group.teacher', 'teacher')
+    .getMany();
+
+  // Statistika
+  const allStudents = new Set(attendances.map(a => a.student.id));
+  const totalStudents = allStudents.size;
+  const totalAttendances = attendances.length;
+  const present = attendances.filter(a => a.status === 'present').length;
+  const absent = attendances.filter(a => a.status === 'absent').length;
+  const late = attendances.filter(a => a.status === 'late').length;
+
+  // Davomat ro'yxati
+  const attendancesList = attendances.map((a) => ({
+    studentId: a.student.id,
+    student: `${a.student.firstName} ${a.student.lastName}`,
+    group: a.lesson.group.name,
+    course: a.lesson.group.course?.name ?? 'N/A',
+    time: a.lesson.lessonDate
+      ? `${a.lesson.lessonDate.toISOString().split('T')[0]} ${a.lesson.group.startTime || 'N/A'}`
+      : 'N/A',
+    teacher: a.lesson.group.teacher
+      ? `${a.lesson.group.teacher.firstName} ${a.lesson.group.teacher.lastName}`
+      : 'N/A',
+    status: a.status,
+  }));
+
+  return {
+    totalStudents,
+    totalAttendances,
+    present,
+    absent,
+    late,
+    attendances: attendancesList,
+  };
+}
 }
