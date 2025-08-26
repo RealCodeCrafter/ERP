@@ -472,66 +472,74 @@ export class AttendanceService {
     return { currentCycle: { startDate, endDate }, isFirstCycle };
   }
 
-  async getDailyAttendanceStats(
+
+  // attendance.service.ts
+
+async getDailyAttendanceStats(
   groupId?: number,
   date?: string,
   period?: 'daily' | 'weekly' | 'monthly',
   studentName?: string,
 ): Promise<any> {
   const moment = require('moment');
-  let startDate = moment().utcOffset('+05:00').startOf('day');
-  let endDate = startDate.clone().add(1, 'day');
 
-  // Filtr bo'yicha sana diapazonini aniqlash
-  if (date && period) {
-    startDate = moment(date, 'YYYY-MM-DD').startOf('day');
-    if (!startDate.isValid()) {
-      throw new BadRequestException('Sana formati noto‘g‘ri. YYYY-MM-DD formatidan foydalaning');
-    }
-    endDate = startDate.clone();
-    if (period === 'daily') endDate.add(1, 'day');
-    else if (period === 'weekly') endDate.add(7, 'days');
-    else if (period === 'monthly') endDate.add(1, 'month');
-    else throw new BadRequestException('Noto‘g‘ri davr. "daily", "weekly" yoki "monthly" dan foydalaning');
+  // Default date range (agar date va period berilmasa)
+  let startDate = date
+    ? moment(date, 'YYYY-MM-DD').startOf('day')
+    : moment().utcOffset('+05:00').startOf('day');
+
+  if (!startDate.isValid()) {
+    throw new BadRequestException('Sana formati noto‘g‘ri. YYYY-MM-DD formatidan foydalaning');
   }
 
-  // Umumiy so'rov
-  const query: FindOptionsWhere<Attendance> = {
-    createdAt: Between(startDate.toDate(), endDate.toDate()),
-    lesson: {
-      group: {
-        status: 'active' as const,
-        ...(groupId && { id: groupId }), // groupId ni shu yerda qo'shamiz
-      },
-    },
-  };
-
-  if (studentName && studentName.trim() !== '') {
-    query.student = [
-      { firstName: ILike(`%${studentName.trim()}%`) },
-      { lastName: ILike(`%${studentName.trim()}%`) },
-    ];
+  let endDate = startDate.clone();
+  if (period === 'daily' || !period) {
+    endDate.add(1, 'day');
+  } else if (period === 'weekly') {
+    endDate.add(7, 'days');
+  } else if (period === 'monthly') {
+    endDate.add(1, 'month');
+  } else {
+    throw new BadRequestException('Noto‘g‘ri davr. "daily", "weekly" yoki "monthly" dan foydalaning');
   }
 
-  const attendances = await this.attendanceRepository.find({
-    where: query,
-    relations: ['student', 'lesson', 'lesson.group', 'lesson.group.course', 'lesson.group.teacher'],
-    order: { createdAt: 'DESC' },
-  });
-
-  if (!attendances.length) {
-    return { totalStudents: 0, totalAttendances: 0, present: 0, absent: 0, late: 0, attendances: [] };
-  }
-
-  // Guruhlar va statistika
-  const groupIds = [...new Set(attendances.map(a => a.lesson.group.id))];
-  const groups = await this.groupRepository
-    .createQueryBuilder('group')
-    .where('group.id IN (:...groupIds)', { groupIds })
-    .leftJoinAndSelect('group.students', 'students')
+  // QueryBuilder bilan filterlash
+  const qb = this.attendanceRepository
+    .createQueryBuilder('attendance')
+    .leftJoinAndSelect('attendance.student', 'student')
+    .leftJoinAndSelect('attendance.lesson', 'lesson')
+    .leftJoinAndSelect('lesson.group', 'group')
     .leftJoinAndSelect('group.course', 'course')
     .leftJoinAndSelect('group.teacher', 'teacher')
-    .getMany();
+    .where('attendance.createdAt BETWEEN :start AND :end', {
+      start: startDate.toDate(),
+      end: endDate.toDate(),
+    })
+    .andWhere('group.status = :status', { status: 'active' });
+
+  if (groupId) {
+    qb.andWhere('group.id = :groupId', { groupId });
+  }
+
+  if (studentName && studentName.trim() !== '') {
+    qb.andWhere(
+      `(student.firstName ILIKE :name OR student.lastName ILIKE :name)`,
+      { name: `%${studentName.trim()}%` },
+    );
+  }
+
+  const attendances = await qb.orderBy('attendance.createdAt', 'DESC').getMany();
+
+  if (!attendances.length) {
+    return {
+      totalStudents: 0,
+      totalAttendances: 0,
+      present: 0,
+      absent: 0,
+      late: 0,
+      attendances: [],
+    };
+  }
 
   // Statistika
   const allStudents = new Set(attendances.map(a => a.student.id));
@@ -541,7 +549,7 @@ export class AttendanceService {
   const absent = attendances.filter(a => a.status === 'absent').length;
   const late = attendances.filter(a => a.status === 'late').length;
 
-  // Davomat ro'yxati
+  // Ro‘yxat
   const attendancesList = attendances.map((a) => ({
     studentId: a.student.id,
     student: `${a.student.firstName} ${a.student.lastName}`,
@@ -565,4 +573,5 @@ export class AttendanceService {
     attendances: attendancesList,
   };
 }
+
 }
