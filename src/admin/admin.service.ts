@@ -162,114 +162,126 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
     return admins;
   }
 
-   async getStatistics(): Promise<any> {
-    const totalStudents = await this.studentRepository.count();
+  async getStatistics(): Promise<any> {
+  const totalStudents = await this.studentRepository.count();
+  const totalGroups = await this.groupRepository.count();
 
-    const totalGroups = await this.groupRepository.count();
+  const activeStudents = await this.studentRepository
+    .createQueryBuilder('student')
+    .innerJoin('student.groups', 'group')
+    .where('group.status = :status', { status: 'active' })
+    .distinct(true)
+    .getCount();
 
-    // 🔹 Faol va bitirgan o‘quvchilar
-    const activeStudents = await this.studentRepository
-      .createQueryBuilder('student')
-      .innerJoin('student.groups', 'group')
-      .where('group.status = :status', { status: 'active' })
-      .distinct(true)
-      .getCount();
+  const completedStudents = await this.studentRepository
+    .createQueryBuilder('student')
+    .innerJoin('student.groups', 'group')
+    .where('group.status = :status', { status: 'completed' })
+    .distinct(true)
+    .getCount();
 
-    const completedStudents = await this.studentRepository
-      .createQueryBuilder('student')
-      .innerJoin('student.groups', 'group')
-      .where('group.status = :status', { status: 'completed' })
-      .distinct(true)
-      .getCount();
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const activeGroups = await this.groupRepository.find({
+    where: { status: 'active' },
+    relations: ['students'],
+  });
 
-    const activeGroups = await this.groupRepository.find({
-      where: { status: 'active' },
-      relations: ['students'],
-    });
+  const monthlyRevenue = activeGroups.reduce((sum, group) => {
+    return sum + group.students.length * group.price;
+  }, 0);
 
-    const monthlyRevenue = activeGroups.reduce((sum, group) => {
-      return sum + group.students.length * group.price;
-    }, 0);
+  const monthlyPayments = await this.paymentRepository.find({
+    where: {
+      paid: true,
+      createdAt: Between(startOfMonth, endOfMonth),
+    },
+  });
 
-    const paidStudents = await this.paymentRepository
-      .createQueryBuilder('payment')
-      .select('COUNT(DISTINCT payment.studentId)', 'count')
-      .where('payment.paid = :paid', { paid: true })
-      .andWhere('payment.createdAt BETWEEN :start AND :end', {
-        start: startOfMonth,
-        end: endOfMonth,
-      })
-      .getRawOne();
-    const activeStudentsList = await this.studentRepository
-      .createQueryBuilder('student')
-      .innerJoin('student.groups', 'group')
-      .where('group.status = :status', { status: 'active' })
-      .distinct(true)
-      .getMany();
+  const transactionsThisMonth = monthlyPayments.length;
 
-    const paidStudentIds = await this.paymentRepository
-      .createQueryBuilder('payment')
-      .select('DISTINCT payment.studentId')
-      .where('payment.paid = :paid', { paid: true })
-      .andWhere('payment.createdAt BETWEEN :start AND :end', {
-        start: startOfMonth,
-        end: endOfMonth,
-      })
-      .getRawMany();
+  const paidAmountThisMonth = monthlyPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount),
+    0,
+  );
 
-    const paidStudentIdsSet = new Set(paidStudentIds.map(p => p.studentId));
-    const unpaidStudents = activeStudentsList.filter(student => !paidStudentIdsSet.has(student.id)).length;
-    const monthlyIncomes = [];
-    const currentMonth = now.getMonth();
+  const paidStudents = await this.paymentRepository
+    .createQueryBuilder('payment')
+    .select('COUNT(DISTINCT payment.studentId)', 'count')
+    .where('payment.paid = :paid', { paid: true })
+    .andWhere('payment.createdAt BETWEEN :start AND :end', {
+      start: startOfMonth,
+      end: endOfMonth,
+    })
+    .getRawOne();
 
-    for (let month = 0; month <= currentMonth; month++) {
-      const monthStart = new Date(now.getFullYear(), month, 1);
-      const monthEnd = new Date(now.getFullYear(), month + 1, 0);
+  const activeStudentsList = await this.studentRepository
+    .createQueryBuilder('student')
+    .innerJoin('student.groups', 'group')
+    .where('group.status = :status', { status: 'active' })
+    .distinct(true)
+    .getMany();
 
-      let income = 0;
-      if (month === currentMonth) {
-        const activeGroupsInMonth = await this.groupRepository.find({
-          where: { status: 'active' },
-          relations: ['students'],
-        });
-        income = activeGroupsInMonth.reduce((sum, group) => {
-          return sum + group.students.length * group.price;
-        }, 0);
-      } else {
-        const payments = await this.paymentRepository.find({
-          where: {
-            paid: true,
-            createdAt: Between(monthStart, monthEnd),
-          },
-        });
-        income = payments.reduce((sum, payment) => sum + payment.amount, 0);
-      }
+  const paidStudentIds = await this.paymentRepository
+    .createQueryBuilder('payment')
+    .select('DISTINCT payment.studentId')
+    .where('payment.paid = :paid', { paid: true })
+    .andWhere('payment.createdAt BETWEEN :start AND :end', {
+      start: startOfMonth,
+      end: endOfMonth,
+    })
+    .getRawMany();
 
-      monthlyIncomes.push({
-        month: month + 1,
-        income,
+  const paidStudentIdsSet = new Set(paidStudentIds.map(p => p.studentId));
+  const unpaidStudents = activeStudentsList.filter(
+    student => !paidStudentIdsSet.has(student.id),
+  ).length;
+
+  const monthlyIncomes = [];
+  const currentMonth = now.getMonth();
+
+  for (let month = 0; month <= currentMonth; month++) {
+    const monthStart = new Date(now.getFullYear(), month, 1);
+    const monthEnd = new Date(now.getFullYear(), month + 1, 0);
+
+    let income = 0;
+    if (month === currentMonth) {
+      // This month expected revenue
+      income = monthlyRevenue;
+    } else {
+      // Past months: sum paid amounts
+      const payments = await this.paymentRepository.find({
+        where: {
+          paid: true,
+          createdAt: Between(monthStart, monthEnd),
+        },
       });
+      income = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
     }
 
-    return {
-      jami: totalStudents,
-      faolOquvchilar: activeStudents,
-      bitirganOquvchilar: completedStudents,
-      guruhlar: totalGroups,
-      oylikDaromad: monthlyRevenue,
-      tolovQilganlar: Number(paidStudents.count),
-      tolovQilmaganlar: unpaidStudents,
-      oylikDaromadlar: monthlyIncomes.map((mi, index) => ({
-        month: [
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-        ][index],
-        income: mi.income,
-      })),
-    };
+    monthlyIncomes.push({
+      month: [
+        'Jan','Feb','Mar','Apr','May','Jun',
+        'Jul','Aug','Sep','Oct','Nov','Dec'
+      ][month],
+      income,
+    });
   }
+
+  return {
+    totalStudents,
+    activeStudents,
+    completedStudents,
+    totalGroups,
+    monthlyRevenue,          
+    transactionsThisMonth,  
+    paidAmountThisMonth,    
+    paidStudents: Number(paidStudents.count),
+    unpaidStudents,
+    monthlyIncomes,
+  };
+}
+
 }
