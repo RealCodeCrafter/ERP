@@ -181,9 +181,10 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
     .getCount();
 
   const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const year = now.getFullYear();
+  const currentMonthIndex = now.getMonth();
+  const currentMonthKey = `${year}-${String(currentMonthIndex + 1).padStart(2, '0')}`;
 
-  // 🔹 Shu oyda faol guruhlar bo‘yicha kutilayotgan tushum
   const activeGroups = await this.groupRepository.find({
     where: { status: 'active' },
     relations: ['students'],
@@ -193,7 +194,6 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
     return sum + group.students.length * Number(group.price);
   }, 0);
 
-  // 🔹 Shu oy uchun to‘lovlar (faqat `monthFor`)
   const monthlyPayments = await this.paymentRepository.find({
     where: {
       paid: true,
@@ -208,15 +208,15 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
     0,
   );
 
-  // 🔹 Shu oyda to‘lov qilgan o‘quvchilar soni
-  const paidStudents = await this.paymentRepository
+  const paidStudentsRaw = await this.paymentRepository
     .createQueryBuilder('payment')
     .select('COUNT(DISTINCT payment.studentId)', 'count')
     .where('payment.paid = :paid', { paid: true })
     .andWhere('payment.monthFor = :monthFor', { monthFor: currentMonthKey })
     .getRawOne();
 
-  // 🔹 Faol o‘quvchilar ro‘yxati
+  const paidStudentsCount = Number(paidStudentsRaw?.count || 0);
+
   const activeStudentsList = await this.studentRepository
     .createQueryBuilder('student')
     .innerJoin('student.groups', 'group')
@@ -224,42 +224,38 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
     .distinct(true)
     .getMany();
 
-  // 🔹 Shu oyda to‘lov qilganlar IDlari
-  const paidStudentIds = await this.paymentRepository
+  const paidStudentIdsRaw = await this.paymentRepository
     .createQueryBuilder('payment')
-    .select('DISTINCT payment.studentId')
+    .select('DISTINCT payment.studentId', 'studentId')
     .where('payment.paid = :paid', { paid: true })
     .andWhere('payment.monthFor = :monthFor', { monthFor: currentMonthKey })
     .getRawMany();
 
-  const paidStudentIdsSet = new Set(paidStudentIds.map(p => p.studentId));
+  const paidStudentIdsSet = new Set(paidStudentIdsRaw.map(p => p.studentId));
   const unpaidStudents = activeStudentsList.filter(
     student => !paidStudentIdsSet.has(student.id),
   ).length;
 
-  // 🔹 Har bir oy bo‘yicha tushum (faqat `monthFor`)
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const monthlyIncomes = [];
-  const currentMonth = now.getMonth();
 
-  for (let month = 0; month <= currentMonth; month++) {
-    const monthKey = `${now.getFullYear()}-${String(month + 1).padStart(2, '0')}`;
+  for (let m = 0; m < 12; m++) {
+    const monthKey = `${year}-${String(m + 1).padStart(2, '0')}`;
 
-    const payments = await this.paymentRepository.find({
-      where: {
-        paid: true,
-        monthFor: monthKey,
-      },
-    });
-
-    const income = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-
-    monthlyIncomes.push({
-      month: [
-        'Jan','Feb','Mar','Apr','May','Jun',
-        'Jul','Aug','Sep','Oct','Nov','Dec'
-      ][month],
-      income,
-    });
+    if (m < currentMonthIndex) {
+      const payments = await this.paymentRepository.find({
+        where: {
+          paid: true,
+          monthFor: monthKey,
+        },
+      });
+      const income = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      monthlyIncomes.push({ month: monthNames[m], income });
+    } else if (m === currentMonthIndex) {
+      monthlyIncomes.push({ month: monthNames[m], income: paidAmountThisMonth });
+    } else {
+      monthlyIncomes.push({ month: monthNames[m], income: 0 });
+    }
   }
 
   return {
@@ -267,12 +263,12 @@ async create(createAdminDto: CreateAdminDto): Promise<Admin> {
     activeStudents,
     completedStudents,
     totalGroups,
-    monthlyRevenue,          // bu oy kutilayotgan tushum
-    transactionsThisMonth,   // shu oy to‘lovlar soni
-    paidAmountThisMonth,     // shu oy tushgan summa
-    paidStudents: Number(paidStudents.count),
+    monthlyRevenue,
+    transactionsThisMonth,
+    paidAmountThisMonth,
+    paidStudents: paidStudentsCount,
     unpaidStudents,
-    monthlyIncomes,          // har bir oy bo‘yicha real tushum (faqat monthFor asosida)
+    monthlyIncomes,
   };
 }
 
