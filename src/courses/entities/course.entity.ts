@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, OneToMany, CreateDateColumn } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
 import { Payment } from '../../payment/entities/payment.entity';
 
@@ -12,6 +12,10 @@ export class Course {
 
   @Column({ type: 'varchar', length: 500 })
   description: string;
+
+  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+createdAt: Date;
+
 
   @ManyToMany(() => Group, (group) => group.course)
   @JoinTable()

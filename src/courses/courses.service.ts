@@ -31,25 +31,50 @@ export class CoursesService {
     return this.courseRepository.save(course);
   }
 
-   async getAllCourses() {
-    const courses = await this.courseRepository.find({ relations: ['groups', 'groups.students'] });
+  async getAllCourses() {
+  const courses = await this.courseRepository.find({
+    relations: ['groups', 'groups.students'],
+  });
 
-    return courses.map((course) => {
-      const groupsCount = course.groups.length;
-      const studentsCount = course.groups.reduce(
-        (acc, group) => acc + group.students.length,
-        0,
-      );
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      return {
-        id: course.id,
-        name: course.name,
-        description: course.description,
-        groupsCount,
-        studentsCount,
-      };
-    });
-  }
+  const courseList = courses.map((course) => {
+    const groupsCount = course.groups.length;
+    const studentsCount = course.groups.reduce(
+      (acc, group) => acc + group.students.length,
+      0,
+    );
+
+    return {
+      id: course.id,
+      name: course.name,
+      description: course.description,
+      groupsCount,
+      studentsCount,
+      createdAt: course.createdAt,
+    };
+  });
+
+  const totalCourses = courses.length;
+  const totalStudents = courseList.reduce(
+    (acc, course) => acc + course.studentsCount,
+    0,
+  );
+  const coursesThisMonth = courses.filter(
+    (course) => course.createdAt >= startOfMonth,
+  ).length;
+
+  return {
+    statistics: {
+      totalCourses,
+      totalStudents,
+      coursesThisMonth,
+    },
+    courses: courseList,
+  };
+}
+
 
 
   async getCourseById(id: number): Promise<Course> {
