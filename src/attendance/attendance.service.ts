@@ -204,7 +204,6 @@ export class AttendanceService {
     const results = [];
 
     for (const group of groups) {
-      // Dars kuni mos kelmasa, xato darslarni log qilish
       if (!group.daysOfWeek?.includes(dayOfWeek)) {
         const invalidLessons = group.lessons.filter(l =>
           moment(l.lessonDate).isSame(targetDate, 'day'),
@@ -217,13 +216,11 @@ export class AttendanceService {
         continue;
       }
 
-      // Guruhning birinchi darsi yaratilganligini tekshirish
       if (!group.lessons || group.lessons.length === 0) {
         console.log(`Guruh ${group.name}: Hali birinchi dars yaratilmagan`);
         continue;
       }
 
-      // Darslarni targetDate uchun filtrlash
       const lessons = group.lessons.filter(l =>
         moment(l.lessonDate).isSame(targetDate, 'day'),
       );
