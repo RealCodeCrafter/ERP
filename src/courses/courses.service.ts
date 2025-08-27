@@ -40,11 +40,14 @@ export class CoursesService {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const courseList = courses.map((course) => {
-    const groupsCount = course.groups.length;
-    const studentsCount = course.groups.reduce(
-      (acc, group) => acc + group.students.length,
-      0,
-    );
+    const groupsCount = course.groups ? course.groups.length : 0;
+
+    const studentsCount = course.groups
+      ? course.groups.reduce(
+          (acc, group) => acc + (group.students ? group.students.length : 0),
+          0,
+        )
+      : 0;
 
     return {
       id: course.id,
@@ -61,8 +64,11 @@ export class CoursesService {
     (acc, course) => acc + course.studentsCount,
     0,
   );
+
   const coursesThisMonth = courses.filter(
-    (course) => course.createdAt >= startOfMonth,
+    (course) =>
+      course.createdAt &&
+      new Date(course.createdAt).getTime() >= startOfMonth.getTime(),
   ).length;
 
   return {
@@ -74,7 +80,6 @@ export class CoursesService {
     courses: courseList,
   };
 }
-
 
 
   async getCourseById(id: number): Promise<Course> {

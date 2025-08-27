@@ -16,9 +16,7 @@ export class Course {
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
 createdAt: Date;
 
-
-  @ManyToMany(() => Group, (group) => group.course)
-  @JoinTable()
+  @OneToMany(() => Group, (group) => group.course)
   groups: Group[];
 
   @OneToMany(() => Payment, (payment) => payment.course)
