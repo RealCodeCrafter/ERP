@@ -10,11 +10,11 @@ export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 
   @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Post()
-  create(@Body() createPaymentDto: CreatePaymentDto) {
-    return this.paymentService.create(createPaymentDto);
-  }
+@UseGuards(AuthGuard, RolesGuard)
+@Post()
+create(@Body() createPaymentDto: CreatePaymentDto) {
+  return this.paymentService.create(createPaymentDto);
+}
 
   @Roles('admin', 'teacher', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)

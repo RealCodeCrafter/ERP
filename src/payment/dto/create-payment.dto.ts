@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString, Matches } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, Matches } from 'class-validator';
 
 export class CreatePaymentDto {
   @IsNotEmpty()
@@ -13,7 +13,7 @@ export class CreatePaymentDto {
   @IsNumber()
   courseId: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
   amount: number;
 

@@ -38,40 +38,49 @@ export class PaymentService {
   ) {}
 
   async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
-    const { studentId, groupId, courseId, amount, monthFor } = createPaymentDto;
+  const { studentId, groupId, courseId, monthFor } = createPaymentDto;
 
-    const student = await this.studentRepository.findOne({ where: { id: studentId } });
-    if (!student) {
-      throw new NotFoundException(`Student with ID ${studentId} not found`);
-    }
-
-    const group = await this.groupRepository.findOne({ where: { id: groupId, status: 'active' } });
-    if (!group) {
-      throw new NotFoundException(`Active group with ID ${groupId} not found`);
-    }
-
-    const course = await this.courseRepository.findOne({ where: { id: courseId } });
-    if (!course) {
-      throw new NotFoundException(`Course with ID ${courseId} not found`);
-    }
-
-    if (!monthFor || !/^\d{4}-\d{2}$/.test(monthFor)) {
-      throw new BadRequestException('monthFor must be in YYYY-MM format');
-    }
-
-    const payment = this.paymentRepository.create({
-      amount,
-      student,
-      group,
-      course,
-      adminStatus: 'accepted',
-      teacherStatus: 'pending',
-      paid: false,
-      monthFor,
-    });
-
-    return this.paymentRepository.save(payment);
+  const student = await this.studentRepository.findOne({ where: { id: studentId } });
+  if (!student) {
+    throw new NotFoundException(`Student with ID ${studentId} not found`);
   }
+
+  const group = await this.groupRepository.findOne({ where: { id: groupId, status: 'active' } });
+  if (!group) {
+    throw new NotFoundException(`Active group with ID ${groupId} not found`);
+  }
+
+  const course = await this.courseRepository.findOne({ where: { id: courseId } });
+  if (!course) {
+    throw new NotFoundException(`Course with ID ${courseId} not found`);
+  }
+
+  if (!monthFor || !/^\d{4}-\d{2}$/.test(monthFor)) {
+    throw new BadRequestException('monthFor must be in YYYY-MM format');
+  }
+
+  const groupPrice = Number(group.price);
+  if (isNaN(groupPrice) || groupPrice <= 0) {
+    throw new BadRequestException(`Invalid group price for group ID ${groupId}`);
+  }
+
+  if (createPaymentDto.amount && Number(createPaymentDto.amount) !== groupPrice) {
+    throw new BadRequestException(`Payment amount must match group price of ${groupPrice}`);
+  }
+
+  const payment = this.paymentRepository.create({
+    amount: groupPrice,
+    student,
+    group,
+    course,
+    adminStatus: 'accepted',
+    teacherStatus: 'pending',
+    paid: false,
+    monthFor,
+  });
+
+  return this.paymentRepository.save(payment);
+}
 
   async findAll(): Promise<Payment[]> {
     return this.paymentRepository.find({
