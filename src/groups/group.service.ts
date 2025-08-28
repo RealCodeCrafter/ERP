@@ -248,28 +248,16 @@ export class GroupsService {
     const currentYear = currentDate.getFullYear();
     const monthStart = new Date(currentYear, currentMonth, 1);
     const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
-
-    // 🔹 Barcha active guruhlar uchun statistika so‘rovi
     const allGroupsForStats = await this.groupRepository
       .createQueryBuilder('group')
       .leftJoinAndSelect('group.students', 'students')
       .where('group.status = :status', { status: 'active' })
       .getMany();
-
-    // 🔹 Barcha kurslar uchun so‘rov (faol kurslar uchun)
     const allCourses = await this.courseRepository.find();
-
-    // 🔹 Statistika hisoblash
-    // Jami guruhlar (faqat active guruhlar)
     const totalGroups = allGroupsForStats.length;
-
-    // Jami talabalar (har guruhdagi talabalar soni yig‘indisi, noyob emas)
     const totalStudents = allGroupsForStats.reduce((sum, group) => sum + (group.students?.length || 0), 0);
 
-    // Faol kurslar (barcha yaratilgan kurslar soni)
     const activeCourses = allCourses.length;
-
-    // Bu oyda yaratilgan guruhlar (joriy oyda createdAt bo‘yicha, statusdan qat’i nazar)
     const groupsThisMonth = await this.groupRepository
       .createQueryBuilder('group')
       .where('group.createdAt BETWEEN :monthStart AND :monthEnd', {
@@ -279,7 +267,6 @@ export class GroupsService {
       .getMany();
     const totalGroupsThisMonth = groupsThisMonth.length;
 
-    // 🔹 Guruhlar ro‘yxati uchun so‘rov (faqat faol guruhlar)
     const groupsQuery = this.groupRepository
       .createQueryBuilder('group')
       .leftJoinAndSelect('group.course', 'course')
@@ -287,7 +274,6 @@ export class GroupsService {
       .leftJoinAndSelect('group.students', 'students')
       .where('group.status = :status', { status: 'active' });
 
-    // 🔹 Guruh nomi bo‘yicha filtr
     if (search && search.trim() !== '') {
       groupsQuery.andWhere('group.name ILike :search', { search: `%${search.trim()}%` });
     }
@@ -304,6 +290,7 @@ export class GroupsService {
       course: group.course?.name || 'N/A',
       studentCount: group.students?.length || 0,
       status: group.status,
+      price: group.price
     }));
 
     // 🔹 Natija
