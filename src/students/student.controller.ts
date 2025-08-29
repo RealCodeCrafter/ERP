@@ -16,16 +16,18 @@ export class StudentsController {
     return this.studentsService.createStudent(createStudentDto);
   }
 
+  
   @Roles('admin', 'superAdmin')
-  @UseGuards(AuthGuard, RolesGuard)
-  @Get()
-  async getAllStudents(
-    @Query('groupId') groupId?: number,
-    @Query('paid') paid?: string,
-  ) {
-    const paidBoolean = paid !== undefined ? paid === 'true' : undefined;
-    return this.studentsService.getAllStudents(groupId, paidBoolean);
-  }
+@UseGuards(AuthGuard, RolesGuard)
+@Get()
+async getAllStudents(
+  @Query('groupId') groupId?: number,
+  @Query('paid') paid?: string,
+) {
+  const paidBoolean = paid !== undefined ? paid === 'true' : undefined;
+  return this.studentsService.getAllStudents(groupId, paidBoolean);
+}
+
 
   @Roles('admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)

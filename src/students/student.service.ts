@@ -27,75 +27,77 @@ export class StudentsService {
     @InjectRepository(Lesson)
     private readonly lessonRepository: Repository<Lesson>,
   ) {}
-
-  async getAllStudents(groupId?: number, paid?: boolean): Promise<any> {
-    // 🔹 Barcha guruhlar uchun talabalar sonini hisoblash (noyob emas)
-    const allGroups = await this.groupRepository
-      .createQueryBuilder('group')
-      .leftJoinAndSelect('group.students', 'students')
-      .getMany();
-    const totalStudents = allGroups.reduce((sum, group) => sum + (group.students?.length || 0), 0);
-
-    // 🔹 Talabalar ro‘yxati uchun so‘rov
-    let studentsQuery = this.studentRepository
-      .createQueryBuilder('student')
-      .leftJoinAndSelect('student.groups', 'groups')
-      .leftJoinAndSelect('student.profile', 'profile')
-      .leftJoinAndSelect('student.payments', 'payments');
-
-    // 🔹 Guruh bo‘yicha filtr
-    if (groupId) {
-      const group = await this.groupRepository.findOne({
+  
+// service
+async getAllStudents(groupId?: number, paid?: boolean): Promise<any> {
+  const groupFilter = groupId
+    ? await this.groupRepository.findOne({
         where: { id: groupId, status: 'active' },
-        relations: ['students'],
-      });
-      if (!group) {
-        throw new NotFoundException(`Active group with ID ${groupId} not found`);
-      }
-      studentsQuery = studentsQuery.where('groups.id = :groupId', { groupId });
+        relations: ['students', 'course'],
+      })
+    : null;
+
+  let studentsQuery = this.studentRepository
+    .createQueryBuilder('student')
+    .leftJoinAndSelect('student.groups', 'groups')
+    .leftJoinAndSelect('student.payments', 'payments');
+
+  if (groupId) {
+    if (!groupFilter) {
+      throw new NotFoundException(`Active group with ID ${groupId} not found`);
     }
+    studentsQuery = studentsQuery.where('groups.id = :groupId', { groupId });
+  }
 
-    // 🔹 To‘lov holati bo‘yicha filtr
-    if (paid !== undefined) {
-      if (paid) {
-        // To‘lov qilganlar: `paid: true` bo‘lgan to‘lovlari bor
-        studentsQuery = studentsQuery.andWhere(
-          'EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = :paid)',
-          { paid: true },
-        );
-      } else {
-        // To‘lov qilmaganlar: hech qanday `paid: true` to‘lovi yo‘q
-        studentsQuery = studentsQuery.andWhere(
-          'NOT EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = :paid)',
-          { paid: true },
-        );
-      }
+  if (paid !== undefined) {
+    if (paid) {
+      studentsQuery = studentsQuery.andWhere(
+        'EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = true)',
+      );
+    } else {
+      studentsQuery = studentsQuery.andWhere(
+        'NOT EXISTS (SELECT 1 FROM payments WHERE payments.studentId = student.id AND payments.paid = true)',
+      );
     }
+  }
 
-    // 🔹 Filtr bo‘lmasa, noyob talabalar
-    const students = await studentsQuery
-      .distinctOn(['student.id']) // Noyob talabalarni ta'minlash
-      .orderBy('student.id', 'ASC')
-      .getMany();
+  const students = await studentsQuery
+    .distinctOn(['student.id'])
+    .orderBy('student.id', 'ASC')
+    .getMany();
 
-    // 🔹 Talabalar ro‘yxatini formatlash
-    const studentList = students.map(student => ({
+  return students.map((student) => {
+    const groups = student.groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+    }));
+
+    const payments =
+      student.payments.length > 0
+        ? student.payments
+        : [
+            {
+              id: null,
+              amount: null,
+              adminStatus: null,
+              teacherStatus: null,
+              paid: false,
+              monthFor: null,
+              createdAt: null,
+            },
+          ];
+
+    return {
       id: student.id,
       firstName: student.firstName,
       lastName: student.lastName,
-      address: student.address || 'N/A',
-      phone: student.phone || 'N/A',
-      parentPhone: student.parentPhone || 'N/A',
-    }));
-
-    // 🔹 Natija
-    return {
-      statistics: {
-        totalStudents,
-      },
-      students: studentList,
+      phone: student.phone,
+      parentPhone: student.parentPhone,
+      groups,
+      payments,
     };
-  }
+  });
+}
 
   async getActiveStudents(name: string, groupId: number): Promise<Student[]> {
     const query: any = { groups: { status: 'active' } };
