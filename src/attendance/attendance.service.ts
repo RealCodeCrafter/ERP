@@ -191,102 +191,106 @@ export class AttendanceService {
 
 }
 
- async getGroupsWithoutAttendance(date: string) {
-    const now = moment().utcOffset('+05:00');
-    const dayOfWeek = moment(date, 'YYYY-MM-DD').format('dddd');
-    const targetDate = moment(date, 'YYYY-MM-DD');
+async getGroupsWithoutAttendance(date?: string) {
+  const targetDate = date
+    ? moment(date, 'YYYY-MM-DD')
+    : moment().utcOffset('+05:00').startOf('day'); // default = bugun
 
-    const groups = await this.groupRepository.find({
-      where: { status: 'active' },
-      relations: ['teacher', 'lessons', 'lessons.attendances'],
-    });
+  const now = moment().utcOffset('+05:00');
+  const dayOfWeek = targetDate.format('dddd');
 
-    const results = [];
+  const groups = await this.groupRepository.find({
+    where: { status: 'active' },
+    relations: ['teacher', 'lessons', 'lessons.attendances'],
+  });
 
-    for (const group of groups) {
-      if (!group.daysOfWeek?.includes(dayOfWeek)) {
-        const invalidLessons = group.lessons.filter(l =>
-          moment(l.lessonDate).isSame(targetDate, 'day'),
-        );
-        if (invalidLessons.length) {
-          console.warn(
-            `Xato: Guruh ${group.name} uchun ${dayOfWeek} kuni dars bo'lmasligi kerak, lekin ${invalidLessons.length} ta dars topildi.`,
-          );
-        }
-        continue;
-      }
+  const results = [];
 
-      if (!group.lessons || group.lessons.length === 0) {
-        console.log(`Guruh ${group.name}: Hali birinchi dars yaratilmagan`);
-        continue;
-      }
-
-      const lessons = group.lessons.filter(l =>
+  for (const group of groups) {
+    if (!group.daysOfWeek?.includes(dayOfWeek)) {
+      const invalidLessons = group.lessons.filter(l =>
         moment(l.lessonDate).isSame(targetDate, 'day'),
       );
+      if (invalidLessons.length) {
+        console.warn(
+          `Xato: Guruh ${group.name} uchun ${dayOfWeek} kuni dars bo'lmasligi kerak, lekin ${invalidLessons.length} ta dars topildi.`,
+        );
+      }
+      continue;
+    }
 
-      if (!lessons.length) {
-        const groupEnd = moment(
-          `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
-          'YYYY-MM-DD HH:mm',
-        ).utcOffset('+05:00');
-        if (now.isAfter(groupEnd)) {
-          console.log(`Guruh ${group.name}: Dars yaratilmagan, vaqt o'tgan`);
-          results.push({
-            groupName: group.name,
-            date: targetDate.format('YYYY-MM-DD'),
-            lessonName: 'yaratilmagan',
-            lessonTime: `${group.startTime} - ${group.endTime}`,
-            teacher: group.teacher
-              ? `${group.teacher.firstName} ${group.teacher.lastName}`
-              : null,
-            phone: group.teacher?.phone,
-            reason: 'Lesson not created',
-          });
-        } else {
-          console.log(`Guruh ${group.name}: Dars yaratilmagan, lekin vaqt hali o'tmagan`);
-        }
+    if (!group.lessons || group.lessons.length === 0) {
+      console.log(`Guruh ${group.name}: Hali birinchi dars yaratilmagan`);
+      continue;
+    }
+
+    const lessons = group.lessons.filter(l =>
+      moment(l.lessonDate).isSame(targetDate, 'day'),
+    );
+
+    if (!lessons.length) {
+      const groupEnd = moment(
+        `${targetDate.format('YYYY-MM-DD')} ${group.endTime}`,
+        'YYYY-MM-DD HH:mm',
+      ).utcOffset('+05:00');
+      if (now.isAfter(groupEnd)) {
+        console.log(`Guruh ${group.name}: Dars yaratilmagan, vaqt o'tgan`);
+        results.push({
+          groupName: group.name,
+          date: targetDate.format('YYYY-MM-DD'),
+          lessonName: 'yaratilmagan',
+          lessonTime: `${group.startTime} - ${group.endTime}`,
+          teacher: group.teacher
+            ? `${group.teacher.firstName} ${group.teacher.lastName}`
+            : null,
+          phone: group.teacher?.phone,
+          reason: 'Lesson not created',
+        });
+      } else {
+        console.log(`Guruh ${group.name}: Dars yaratilmagan, lekin vaqt hali o'tmagan`);
+      }
+      continue;
+    }
+
+    for (const lesson of lessons) {
+      const hasAttendance = lesson.attendances?.length > 0;
+      const lessonStart = moment(lesson.lessonDate).utcOffset('+05:00');
+      const lessonEnd = moment(lesson.endDate).utcOffset('+05:00');
+
+      if (lessonStart.isBefore(moment(group.createdAt).utcOffset('+05:00'))) {
+        console.warn(
+          `Xato: Guruh ${group.name} uchun dars (ID: ${lesson.id}) guruh yaratilishidan oldin (${lesson.lessonDate}) ro'yxatga olingan.`,
+        );
         continue;
       }
 
-      for (const lesson of lessons) {
-        const hasAttendance = lesson.attendances?.length > 0;
-        const lessonStart = moment(lesson.lessonDate).utcOffset('+05:00');
-        const lessonEnd = moment(lesson.endDate).utcOffset('+05:00');
-
-        // Dars guruh yaratilishidan oldin ro'yxatga olingan bo'lsa, xato log qilish
-        if (lessonStart.isBefore(moment(group.createdAt).utcOffset('+05:00'))) {
-          console.warn(
-            `Xato: Guruh ${group.name} uchun dars (ID: ${lesson.id}) guruh yaratilishidan oldin (${lesson.lessonDate}) ro'yxatga olingan.`,
-          );
-          continue;
-        }
-
-        if (!hasAttendance && now.isAfter(lessonEnd)) {
-          console.log(`Guruh ${group.name}: Davomat qilinmagan, dars tugagan`);
-          results.push({
-            groupName: group.name,
-            date: targetDate.format('YYYY-MM-DD'),
-            lessonName: lesson.lessonName ?? 'yaratilmagan',
-            lessonTime: `${lessonStart.format('HH:mm')} - ${lessonEnd.format('HH:mm')}`,
-            teacher: group.teacher
-              ? `${group.teacher.firstName} ${group.teacher.lastName}`
-              : null,
-            phone: group.teacher?.phone,
-            reason: 'Attendance not created',
-          });
-        } else if (hasAttendance) {
-          console.log(`Guruh ${group.name}: Davomat qilingan (Dars: ${lesson.lessonName})`);
-        } else {
-          console.log(
-            `Guruh ${group.name}: Davomat qilinmagan, lekin dars hali tugamagan (Dars: ${lesson.lessonName})`,
-          );
-        }
+      if (!hasAttendance && now.isAfter(lessonEnd)) {
+        console.log(`Guruh ${group.name}: Davomat qilinmagan, dars tugagan`);
+        results.push({
+          groupName: group.name,
+          date: targetDate.format('YYYY-MM-DD'),
+          lessonName: lesson.lessonName ?? 'yaratilmagan',
+          lessonTime: `${lessonStart.format('HH:mm')} - ${lessonEnd.format('HH:mm')}`,
+          teacher: group.teacher
+            ? `${group.teacher.firstName} ${group.teacher.lastName}`
+            : null,
+          phone: group.teacher?.phone,
+          reason: 'Attendance not created',
+        });
+      } else if (hasAttendance) {
+        console.log(`Guruh ${group.name}: Davomat qilingan (Dars: ${lesson.lessonName})`);
+      } else {
+        console.log(
+          `Guruh ${group.name}: Davomat qilinmagan, lekin dars hali tugamagan (Dars: ${lesson.lessonName})`,
+        );
       }
     }
-
-    return results;
   }
+
+  return results;
+}
+
+
   async remove(id: number) {
     const attendance = await this.findOne(id);
     return this.attendanceRepository.remove(attendance);
