@@ -185,11 +185,14 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
     });
   }
 
-  async getPaymentsByGroupAndStudentName(groupId: number, studentName?: string): Promise<any[]> {
-  // Guruhni tekshirish
+  async getPaymentsByGroupAndStudentName(
+  groupId: number,
+  studentName?: string,
+): Promise<any[]> {
+  // Guruhni tekshirish (kursni ham qo‘shamiz!)
   const group = await this.groupRepository.findOne({
     where: { id: groupId, status: 'active' },
-    relations: ['students'],
+    relations: ['students', 'teacher', 'course'],
   });
   if (!group) {
     throw new NotFoundException(`Active group with ID ${groupId} not found`);
@@ -198,9 +201,7 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
   const now = new Date();
   const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
 
-  const query: any = {
-    group: { id: groupId },
-  };
+  const query: any = { group: { id: groupId } };
 
   if (studentName && studentName.trim() !== '') {
     query.student = [
@@ -212,30 +213,32 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
   // Shu guruhdagi mavjud barcha to‘lovlar
   const payments = await this.paymentRepository.find({
     where: query,
-    relations: ['student', 'group', 'group.teacher', 'course'],
+    relations: ['student', 'group', 'group.teacher', 'group.course'],
     order: { createdAt: 'DESC' },
   });
 
   // Shu oyda to‘lov qilgan studentlar id'lari
   const paidThisMonthIds = payments
-    .filter(p => p.monthFor === currentMonth)
-    .map(p => p.student.id);
+    .filter((p) => p.monthFor === currentMonth)
+    .map((p) => p.student.id);
 
-  // Guruhdagi studentlarni tekshiramiz
+  // Guruhdagi to‘lov qilmagan studentlar uchun fake Payment obyekt
   const unpaidThisMonth = group.students
-    .filter(s => !paidThisMonthIds.includes(s.id))
-    .map(s => ({
+    .filter((s) => !paidThisMonthIds.includes(s.id))
+    .map((s) => ({
       id: null,
+      amount: null,
+      adminStatus: null,
+      teacherStatus: null,
+      paid: false,
+      monthFor: currentMonth,
+      createdAt: null,
       student: s,
       group,
-      course: null,
-      createdAt: null,
-      monthFor: currentMonth,
-      teacherStatus: null,
-      reason: 'No payment this month',
+      course: group.course, // 🔥 endi kurs null bo‘maydi
     }));
 
-  // Birlashtiramiz
+  // Hammasini qaytaramiz
   return [...payments, ...unpaidThisMonth];
 }
 
