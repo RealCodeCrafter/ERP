@@ -36,9 +36,8 @@ export class PaymentService {
     private readonly configService: ConfigService,
     private readonly schedulerRegistry: SchedulerRegistry,
   ) {}
-
-  async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
-  const { studentId, groupId, courseId, monthFor } = createPaymentDto;
+async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
+  const { studentId, groupId, courseId, monthFor, amount } = createPaymentDto;
 
   const student = await this.studentRepository.findOne({ where: { id: studentId } });
   if (!student) {
@@ -64,12 +63,17 @@ export class PaymentService {
     throw new BadRequestException(`Invalid group price for group ID ${groupId}`);
   }
 
-  if (createPaymentDto.amount && Number(createPaymentDto.amount) !== groupPrice) {
-    throw new BadRequestException(`Payment amount must match group price of ${groupPrice}`);
+  const paymentAmount = Number(amount);
+  if (isNaN(paymentAmount) || paymentAmount <= 0) {
+    throw new BadRequestException('Payment amount must be a positive number');
+  }
+
+  if (paymentAmount > groupPrice) {
+    throw new BadRequestException(`Payment amount cannot exceed group price of ${groupPrice}`);
   }
 
   const payment = this.paymentRepository.create({
-    amount: groupPrice,
+    amount: paymentAmount,
     student,
     group,
     course,
@@ -81,6 +85,7 @@ export class PaymentService {
 
   return this.paymentRepository.save(payment);
 }
+
 
   async findAll(): Promise<Payment[]> {
     return this.paymentRepository.find({
