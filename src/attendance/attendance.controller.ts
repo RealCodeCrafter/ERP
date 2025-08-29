@@ -16,13 +16,16 @@ export class AttendanceController {
     return this.attendanceService.create(createAttendanceDto, teacherId);
   }
   
+
   @Roles('admin', 'superAdmin')
 @UseGuards(AuthGuard, RolesGuard)
 @Get('missing')
-async getGroupsWithoutAttendance(@Query('date') date?: string) {
+async getGroupsWithoutAttendance(@Query('date') date: string) {
+  if (!date) {
+    throw new BadRequestException('date query param is required (YYYY-MM-DD)');
+  }
   return this.attendanceService.getGroupsWithoutAttendance(date);
 }
-
 
   @Roles('teacher', 'admin', 'superAdmin')
   @UseGuards(AuthGuard, RolesGuard)
