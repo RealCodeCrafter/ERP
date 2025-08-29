@@ -10,11 +10,11 @@ export class Course {
   @Column({ type: 'varchar', length: 100 })
   name: string;
 
-  @Column({ type: 'varchar', length: 500 })
-  description: string;
+  @Column({ type: 'varchar', length: 500, nullable: true, default: null })
+  description: string | null;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-createdAt: Date;
+  createdAt: Date;
 
   @OneToMany(() => Group, (group) => group.course)
   groups: Group[];
