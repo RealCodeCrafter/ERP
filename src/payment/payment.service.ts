@@ -185,34 +185,59 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
     });
   }
 
-  async getPaymentsByGroupAndStudentName(groupId: number, studentName?: string): Promise<Payment[]> {
-    // Guruhni tekshirish
-    const group = await this.groupRepository.findOne({
-      where: { id: groupId, status: 'active' },
-    });
-    if (!group) {
-      throw new NotFoundException(`Active group with ID ${groupId} not found`);
-    }
-
-    const query: any = {
-      group: { id: groupId },
-    };
-
-    if (studentName && studentName.trim() !== '') {
-      query.student = [
-        { firstName: ILike(`%${studentName.trim()}%`) },
-        { lastName: ILike(`%${studentName.trim()}%`) },
-      ];
-    }
-
-    const payments = await this.paymentRepository.find({
-      where: query,
-      relations: ['student', 'group', 'group.teacher', 'course'],
-      order: { createdAt: 'DESC' },
-    });
-
-    return payments;
+  async getPaymentsByGroupAndStudentName(groupId: number, studentName?: string): Promise<any[]> {
+  // Guruhni tekshirish
+  const group = await this.groupRepository.findOne({
+    where: { id: groupId, status: 'active' },
+    relations: ['students'],
+  });
+  if (!group) {
+    throw new NotFoundException(`Active group with ID ${groupId} not found`);
   }
+
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7); // YYYY-MM
+
+  const query: any = {
+    group: { id: groupId },
+  };
+
+  if (studentName && studentName.trim() !== '') {
+    query.student = [
+      { firstName: ILike(`%${studentName.trim()}%`) },
+      { lastName: ILike(`%${studentName.trim()}%`) },
+    ];
+  }
+
+  // Shu guruhdagi mavjud barcha to‘lovlar
+  const payments = await this.paymentRepository.find({
+    where: query,
+    relations: ['student', 'group', 'group.teacher', 'course'],
+    order: { createdAt: 'DESC' },
+  });
+
+  // Shu oyda to‘lov qilgan studentlar id'lari
+  const paidThisMonthIds = payments
+    .filter(p => p.monthFor === currentMonth)
+    .map(p => p.student.id);
+
+  // Guruhdagi studentlarni tekshiramiz
+  const unpaidThisMonth = group.students
+    .filter(s => !paidThisMonthIds.includes(s.id))
+    .map(s => ({
+      id: null,
+      student: s,
+      group,
+      course: null,
+      createdAt: null,
+      monthFor: currentMonth,
+      teacherStatus: null,
+      reason: 'No payment this month',
+    }));
+
+  // Birlashtiramiz
+  return [...payments, ...unpaidThisMonth];
+}
 
   async findUnpaidPayments(studentName: string, groupId: number, monthFor: string): Promise<Payment[]> {
     const query: any = { paid: false };

@@ -231,7 +231,6 @@ export class AttendanceService {
           'YYYY-MM-DD HH:mm',
         ).utcOffset('+05:00');
         if (now.isAfter(groupEnd)) {
-          console.log(`Guruh ${group.name}: Dars yaratilmagan, vaqt o'tgan`);
           results.push({
             groupName: group.name,
             date: targetDate.format('YYYY-MM-DD'),
@@ -244,7 +243,6 @@ export class AttendanceService {
             reason: 'Lesson not created',
           });
         } else {
-          console.log(`Guruh ${group.name}: Dars yaratilmagan, lekin vaqt hali o'tmagan`);
         }
         continue;
       }
@@ -254,7 +252,6 @@ export class AttendanceService {
         const lessonStart = moment(lesson.lessonDate).utcOffset('+05:00');
         const lessonEnd = moment(lesson.endDate).utcOffset('+05:00');
 
-        // Dars guruh yaratilishidan oldin ro'yxatga olingan bo'lsa, xato log qilish
         if (lessonStart.isBefore(moment(group.createdAt).utcOffset('+05:00'))) {
           console.warn(
             `Xato: Guruh ${group.name} uchun dars (ID: ${lesson.id}) guruh yaratilishidan oldin (${lesson.lessonDate}) ro'yxatga olingan.`,
@@ -263,7 +260,6 @@ export class AttendanceService {
         }
 
         if (!hasAttendance && now.isAfter(lessonEnd)) {
-          console.log(`Guruh ${group.name}: Davomat qilinmagan, dars tugagan`);
           results.push({
             groupName: group.name,
             date: targetDate.format('YYYY-MM-DD'),
