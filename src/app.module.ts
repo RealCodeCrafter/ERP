@@ -43,7 +43,7 @@ import { SmsModule } from './sms/sms.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get<string>('DB_URL'),
+        url: configService.get('DATABASE_URL') as string,
         entities: [
           Course,
           Group,
