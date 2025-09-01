@@ -104,8 +104,7 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
     return payment;
   }
 
-  
-async confirmTeacher(id: number, teacherId: number): Promise<Payment> {
+  async confirmTeacher(id: number, teacherId: number): Promise<Payment> {
   const payment = await this.findOne(id);
 
   const group = await this.groupRepository.findOne({
@@ -120,10 +119,9 @@ async confirmTeacher(id: number, teacherId: number): Promise<Payment> {
     throw new ForbiddenException('You can only confirm payments for your own group');
   }
 
-  // O‘qituvchi tasdiqlaydi
   payment.teacherStatus = 'accepted';
+  await this.paymentRepository.save(payment);
 
-  // 🔎 Shu student + group + monthFor bo‘yicha tasdiqlangan to‘lovlarni yig‘amiz
   const confirmedPayments = await this.paymentRepository.find({
     where: {
       student: payment.student,
@@ -135,17 +133,18 @@ async confirmTeacher(id: number, teacherId: number): Promise<Payment> {
   });
 
   const totalPaid = confirmedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-
-  // Agar umumiy to‘lov group.price ga teng yoki katta bo‘lsa → barcha yozuvlar paid=true bo‘ladi
   if (totalPaid >= Number(group.price)) {
     for (const p of confirmedPayments) {
-      p.paid = true;
+      if (!p.paid) {
+        p.paid = true;
+      }
     }
     await this.paymentRepository.save(confirmedPayments);
   }
 
-  return this.paymentRepository.save(payment);
+  return payment;
 }
+
 
 
   async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
