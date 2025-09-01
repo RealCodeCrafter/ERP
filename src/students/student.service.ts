@@ -93,6 +93,7 @@ async getAllStudents(groupId?: number, paid?: boolean): Promise<any> {
       lastName: student.lastName,
       phone: student.phone,
       parentPhone: student.parentPhone,
+      address: student.address,
       groups,
       payments,
     };
