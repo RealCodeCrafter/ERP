@@ -104,22 +104,49 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
     return payment;
   }
 
-  async confirmTeacher(id: number, teacherId: number): Promise<Payment> {
-    const payment = await this.findOne(id);
-    const group = await this.groupRepository.findOne({
-      where: { id: payment.group.id, status: 'active' },
-      relations: ['teacher', 'students'],
-    });
-    if (!group) {
-      throw new NotFoundException(`Active group with ID ${payment.group.id} not found`);
-    }
-    if (group.teacher.id !== teacherId) {
-      throw new ForbiddenException('You can only confirm payments for your own group');
-    }
-    payment.teacherStatus = 'accepted';
-    payment.paid = payment.adminStatus === 'accepted' && payment.teacherStatus === 'accepted' && payment.amount >= group.price;
-    return this.paymentRepository.save(payment);
+  
+async confirmTeacher(id: number, teacherId: number): Promise<Payment> {
+  const payment = await this.findOne(id);
+
+  const group = await this.groupRepository.findOne({
+    where: { id: payment.group.id, status: 'active' },
+    relations: ['teacher', 'students'],
+  });
+  if (!group) {
+    throw new NotFoundException(`Active group with ID ${payment.group.id} not found`);
   }
+
+  if (group.teacher.id !== teacherId) {
+    throw new ForbiddenException('You can only confirm payments for your own group');
+  }
+
+  // O‘qituvchi tasdiqlaydi
+  payment.teacherStatus = 'accepted';
+
+  // 🔎 Shu student + group + monthFor bo‘yicha tasdiqlangan to‘lovlarni yig‘amiz
+  const confirmedPayments = await this.paymentRepository.find({
+    where: {
+      student: payment.student,
+      group: payment.group,
+      course: payment.course,
+      monthFor: payment.monthFor,
+      teacherStatus: 'accepted',
+    },
+  });
+
+  const totalPaid = confirmedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  // Agar umumiy to‘lov group.price ga teng yoki katta bo‘lsa → barcha yozuvlar paid=true bo‘ladi
+  if (totalPaid >= Number(group.price)) {
+    for (const p of confirmedPayments) {
+      p.paid = true;
+    }
+    await this.paymentRepository.save(confirmedPayments);
+  }
+
+  return this.paymentRepository.save(payment);
+}
+
 
   async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
     const payment = await this.findOne(id);
