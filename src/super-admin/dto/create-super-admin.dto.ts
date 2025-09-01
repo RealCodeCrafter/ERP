@@ -8,10 +8,10 @@ export class CreateSuperAdminDto {
   password: string;
 
   @IsString()
-  firstname: string;   
+  firstName: string; 
 
   @IsString()
-  lastname: string; 
+  lastName: string;   
 
   @IsString()
   phone: string;
@@ -21,5 +21,5 @@ export class CreateSuperAdminDto {
 
   @IsOptional()
   @IsBoolean()
-  smsnotificationsenabled?: boolean;
+  smsNotificationsEnabled?: boolean;
 }
