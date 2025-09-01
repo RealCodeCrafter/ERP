@@ -16,7 +16,6 @@ export class SuperAdminController {
   }
 
 
-  
   @Post()
   create(@Body() createSuperAdminDto: CreateSuperAdminDto) {
     return this.superAdminService.create(createSuperAdminDto);

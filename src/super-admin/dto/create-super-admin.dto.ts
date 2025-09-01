@@ -1,9 +1,25 @@
+import { IsString, IsBoolean, IsOptional } from 'class-validator';
+
 export class CreateSuperAdminDto {
+  @IsString()
   username: string;
+
+  @IsString()
   password: string;
-  firstName: string;
-  lastName: string;
+
+  @IsString()
+  firstname: string;   
+
+  @IsString()
+  lastname: string; 
+
+  @IsString()
   phone: string;
+
+  @IsString()
   address: string;
-  smsNotificationsEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  smsnotificationsenabled?: boolean;
 }
