@@ -105,11 +105,18 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
   }
 
   async confirmTeacher(id: number, teacherId: number): Promise<Payment> {
-  const payment = await this.findOne(id);
+  const payment = await this.paymentRepository.findOne({
+    where: { id },
+    relations: ['student', 'group', 'course'], // kerakli obyektlarni olib kelamiz
+  });
+
+  if (!payment) {
+    throw new NotFoundException(`Payment with ID ${id} not found`);
+  }
 
   const group = await this.groupRepository.findOne({
     where: { id: payment.group.id, status: 'active' },
-    relations: ['teacher', 'students'],
+    relations: ['teacher'],
   });
   if (!group) {
     throw new NotFoundException(`Active group with ID ${payment.group.id} not found`);
@@ -119,32 +126,33 @@ async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
     throw new ForbiddenException('You can only confirm payments for your own group');
   }
 
+  // 1️⃣ Shu paymentni accepted qilamiz
   payment.teacherStatus = 'accepted';
   await this.paymentRepository.save(payment);
 
+  // 2️⃣ Shu oyga oid barcha accepted bo‘lgan paymentlarni yig‘amiz
   const confirmedPayments = await this.paymentRepository.find({
     where: {
-      student: payment.student,
-      group: payment.group,
-      course: payment.course,
+      student: { id: payment.student.id },
+      group: { id: payment.group.id },
+      course: { id: payment.course.id },
       monthFor: payment.monthFor,
       teacherStatus: 'accepted',
     },
   });
 
   const totalPaid = confirmedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  // 3️⃣ Agar umumiy summa group.price ga teng yoki katta bo‘lsa → hammasini paid=true qilamiz
   if (totalPaid >= Number(group.price)) {
-    for (const p of confirmedPayments) {
-      if (!p.paid) {
-        p.paid = true;
-      }
-    }
+    confirmedPayments.forEach((p) => {
+      p.paid = true;
+    });
     await this.paymentRepository.save(confirmedPayments);
   }
 
   return payment;
 }
-
 
 
   async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
