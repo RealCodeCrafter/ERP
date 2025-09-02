@@ -2,9 +2,26 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
-
 import { webcrypto } from 'crypto';
-globalThis.crypto = webcrypto as Crypto;
+
+(function ensureGlobalCrypto() {
+  try {
+    const desc = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+
+    if (!desc) {
+      Object.defineProperty(globalThis, 'crypto', {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: webcrypto as unknown as any,
+      });
+    } else if ((desc as PropertyDescriptor).writable || (desc as PropertyDescriptor).configurable) {
+      (globalThis as any).crypto = webcrypto as any;
+    } else {
+    }
+  } catch (err) {
+  }
+})();
 
 import { Course } from './courses/entities/course.entity';
 import { Group } from './groups/entities/group.entity';
