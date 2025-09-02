@@ -2,26 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
-import { webcrypto } from 'crypto';
-
-(function ensureGlobalCrypto() {
-  try {
-    const desc = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
-
-    if (!desc) {
-      Object.defineProperty(globalThis, 'crypto', {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: webcrypto as unknown as any,
-      });
-    } else if ((desc as PropertyDescriptor).writable || (desc as PropertyDescriptor).configurable) {
-      (globalThis as any).crypto = webcrypto as any;
-    } else {
-    }
-  } catch (err) {
-  }
-})();
 
 import { Course } from './courses/entities/course.entity';
 import { Group } from './groups/entities/group.entity';
@@ -61,11 +41,11 @@ import { SmsModule } from './sms/sms.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-    host: configService.get<string>('DB_HOST'),
-    port: parseInt(configService.get<string>('DB_PORT'), 10),
-    username: configService.get<string>('DB_USERNAME'),
-    password: configService.get<string>('DB_PASSWORD'),
-    database: configService.get<string>('DB_NAME'),
+        host: configService.get<string>('DB_HOST'),
+        port: parseInt(configService.get<string>('DB_PORT'), 10),
+        username: configService.get<string>('DB_USERNAME'),
+        password: configService.get<string>('DB_PASSWORD'),
+        database: configService.get<string>('DB_NAME'),
         entities: [
           Course,
           Group,
