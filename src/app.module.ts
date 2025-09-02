@@ -60,7 +60,8 @@ import { SmsModule } from './sms/sms.module';
         ],
         synchronize: true,
         autoLoadEntities: true,
-        ssl: false,
+        ssl: {
+          rejectUnauthorized: false        },
       }),
     }),
     CoursesModule,
