@@ -63,7 +63,7 @@ import { SmsModule } from './sms/sms.module';
         type: 'postgres',
     host: configService.get<string>('DB_HOST'),
     port: parseInt(configService.get<string>('DB_PORT'), 10),
-    username: configService.get<string>('DB_USER'),
+    username: configService.get<string>('DB_USERNAME'),
     password: configService.get<string>('DB_PASSWORD'),
     database: configService.get<string>('DB_NAME'),
         entities: [
