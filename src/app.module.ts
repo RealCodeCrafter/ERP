@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
+import * as crypto from 'crypto';
+(global as any).crypto = crypto;
 
 import { Course } from './courses/entities/course.entity';
 import { Group } from './groups/entities/group.entity';
@@ -41,11 +43,7 @@ import { SmsModule } from './sms/sms.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: parseInt(configService.get<string>('DB_PORT'), 10),
-        username: configService.get<string>('DB_USERNAME'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
+        url: configService.get('DATABASE_URL') as string,
         entities: [
           Course,
           Group,
@@ -60,8 +58,7 @@ import { SmsModule } from './sms/sms.module';
         ],
         synchronize: true,
         autoLoadEntities: true,
-        ssl: {
-          rejectUnauthorized: false        },
+        ssl: false,
       }),
     }),
     CoursesModule,
