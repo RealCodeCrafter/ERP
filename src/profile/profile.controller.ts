@@ -19,7 +19,7 @@ import { AuthGuard, Roles, RolesGuard } from 'src/auth/auth.guard';
 export class ProfilesController {
   constructor(private readonly profilesService: ProfilesService) {}
 
-  @Roles()
+  @Roles('admin', 'student')
   @UseGuards(AuthGuard, RolesGuard)
   @Post()
   async createProfile(

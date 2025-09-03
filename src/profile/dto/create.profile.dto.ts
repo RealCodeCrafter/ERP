@@ -54,9 +54,4 @@ export class CreateProfileDto {
   @IsInt()
   @IsPositive()
   teacherId?: number;
-
-  @IsOptional()
-  @IsInt()
-  @IsPositive()
-  superAdminId?: number;
 }

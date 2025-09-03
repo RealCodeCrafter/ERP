@@ -25,7 +25,7 @@ export class ProfilesService {
   ) {}
 
   async createProfile(createProfileDto: CreateProfileDto): Promise<Profile> {
-    const { studentId, adminId, teacherId, superAdminId, firstName, lastName, photo, username, password, address, phone, parentsName, parentPhone } = createProfileDto;
+    const { studentId, adminId, teacherId, firstName, lastName, photo, username, password, address, phone, parentsName, parentPhone } = createProfileDto;
 
     const profileData: Partial<Profile> = {
       firstName,
@@ -63,24 +63,16 @@ export class ProfilesService {
       profileData.teacher = teacher;
     }
 
-    if (superAdminId) {
-      const superAdmin = await this.superAdminRepository.findOne({ where: { id: superAdminId } });
-      if (!superAdmin) {
-        throw new NotFoundException(`SuperAdmin with ID ${superAdminId} not found`);
-      }
-      profileData.SuperAdmin = superAdmin;
-    }
-
     const profile = this.profileRepository.create(profileData);
     return this.profileRepository.save(profile);
   }
 
   async getAllProfiles(): Promise<Profile[]> {
-    return this.profileRepository.find({ relations: ['student', 'admin', 'teacher', 'SuperAdmin'] });
+    return this.profileRepository.find({ relations: ['student', 'admin', 'teacher'] });
   }
 
   async getProfileById(id: number): Promise<Profile> {
-    const profile = await this.profileRepository.findOne({ where: { id }, relations: ['student', 'admin', 'teacher', 'SuperAdmin'] });
+    const profile = await this.profileRepository.findOne({ where: { id }, relations: ['student', 'admin', 'teacher'] });
     if (!profile) {
       throw new NotFoundException(`Profile with ID ${id} not found`);
     }
@@ -89,12 +81,17 @@ export class ProfilesService {
 
   async getMyProfile(userId: number): Promise<Profile> {
     const profile = await this.profileRepository.findOne({
-      where: { id: userId },
+      where: [
+        { student: { id: userId } },
+        { admin: { id: userId } },
+        { teacher: { id: userId } },
+        { SuperAdmin: { id: userId } },
+      ],
       relations: ['student', 'admin', 'teacher', 'SuperAdmin'],
     });
 
     if (!profile) {
-      throw new NotFoundException(`Profile with ID ${userId} not found`);
+      throw new NotFoundException(`Profile with user ID ${userId} not found`);
     }
 
     return profile;
@@ -103,10 +100,9 @@ export class ProfilesService {
   async updateMyProfile(userId: number, updateProfileDto: UpdateProfileDto): Promise<Profile> {
     const profile = await this.getMyProfile(userId);
 
-    // Faqat kiritilgan maydonlarni yangilash
     const { studentId, adminId, teacherId, superAdminId, ...rest } = updateProfileDto;
 
-    // Faqat mavjud maydonlarni yangilash, qolganlari o'zgarishsiz qoladi
+    // Faqat kiritilgan maydonlarni yangilash
     if (rest.firstName !== undefined) profile.firstName = rest.firstName;
     if (rest.lastName !== undefined) profile.lastName = rest.lastName;
     if (rest.photo !== undefined) profile.photo = rest.photo;
