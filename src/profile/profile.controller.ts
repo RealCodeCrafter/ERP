@@ -37,8 +37,8 @@ export class ProfilesController {
   @UseGuards(AuthGuard)
   @Get('me')
   async getMyProfile(@Req() req: any): Promise<Profile> {
-    const username = req.user.username;
-    return this.profilesService.getMyProfile(username);
+    const userId = req.user.id;
+    return this.profilesService.getMyProfile(userId);
   }
 
   @UseGuards(AuthGuard)
@@ -53,11 +53,10 @@ export class ProfilesController {
     @Req() req: any,
     @Body() updateProfileDto: UpdateProfileDto,
   ): Promise<Profile> {
-    const username = req.user.username;
-    return this.profilesService.updateMyProfile(username, updateProfileDto);
+    const userId = req.user.id;
+    return this.profilesService.updateMyProfile(userId, updateProfileDto);
   }
 
-  
   @Roles('admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Delete(':id')
