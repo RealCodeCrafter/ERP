@@ -9,10 +9,11 @@ import { Admin } from '../admin/entities/admin.entity'; // admin entityni to'g'r
 import { StudentsModule } from '../students/student.module';
 import { TeachersModule } from '../teacher/teacher.module';
 import { AdminModule } from '../admin/admin.module';
+import { SuperAdmin } from 'src/super-admin/entities/super-admin.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Profile, Student, Teacher, Admin])
+    TypeOrmModule.forFeature([Profile, Student, Teacher, Admin, SuperAdmin])
   ],
   controllers: [ProfilesController],
   providers: [ProfilesService],
