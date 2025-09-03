@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Profile } from './entities/profile.entity';
@@ -8,6 +8,7 @@ import { Student } from '../students/entities/student.entity';
 import { Admin } from '../admin/entities/admin.entity';
 import { Teacher } from '../teacher/entities/teacher.entity';
 import { SuperAdmin } from '../super-admin/entities/super-admin.entity';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class ProfilesService {
@@ -102,12 +103,47 @@ export class ProfilesService {
 
     const { studentId, adminId, teacherId, superAdminId, ...rest } = updateProfileDto;
 
+    // Username yoki phone uchun unikalikni tekshirish
+    if (rest.username && rest.username !== profile.username) {
+      const existingProfile = await this.profileRepository.findOne({
+        where: [
+          { student: { username: rest.username } },
+          { admin: { username: rest.username } },
+          { teacher: { username: rest.username } },
+          { SuperAdmin: { username: rest.username } },
+        ],
+      });
+      if (existingProfile && existingProfile.id !== profile.id) {
+        throw new ConflictException(`Username ${rest.username} already exists`);
+      }
+    }
+
+    if (rest.phone && rest.phone !== profile.phone) {
+      const existingProfile = await this.profileRepository.findOne({
+        where: [
+          { student: { phone: rest.phone } },
+          { admin: { phone: rest.phone } },
+          { teacher: { phone: rest.phone } },
+          { SuperAdmin: { phone: rest.phone } },
+        ],
+      });
+      if (existingProfile && existingProfile.id !== profile.id) {
+        throw new ConflictException(`Phone ${rest.phone} already exists`);
+      }
+    }
+
+    // Parolni hash qilish
+    let hashedPassword: string | undefined;
+    if (rest.password) {
+      hashedPassword = await bcrypt.hash(rest.password, 10);
+    }
+
     // Profil maydonlarini yangilash
     if (rest.firstName !== undefined) profile.firstName = rest.firstName;
     if (rest.lastName !== undefined) profile.lastName = rest.lastName;
     if (rest.photo !== undefined) profile.photo = rest.photo;
     if (rest.username !== undefined) profile.username = rest.username;
-    if (rest.password !== undefined) profile.password = rest.password;
+    if (hashedPassword !== undefined) profile.password = hashedPassword;
     if (rest.address !== undefined) profile.address = rest.address;
     if (rest.phone !== undefined) profile.phone = rest.phone;
     if (rest.parentsName !== undefined) profile.parentsName = rest.parentsName;
@@ -122,7 +158,7 @@ export class ProfilesService {
         if (rest.phone !== undefined) student.phone = rest.phone;
         if (rest.address !== undefined) student.address = rest.address;
         if (rest.username !== undefined) student.username = rest.username;
-        if (rest.password !== undefined) student.password = rest.password;
+        if (hashedPassword !== undefined) student.password = hashedPassword;
         if (rest.parentsName !== undefined) student.parentsName = rest.parentsName;
         if (rest.parentPhone !== undefined) student.parentPhone = rest.parentPhone;
         await this.studentRepository.save(student);
@@ -137,7 +173,7 @@ export class ProfilesService {
         if (rest.phone !== undefined) admin.phone = rest.phone;
         if (rest.address !== undefined) admin.address = rest.address;
         if (rest.username !== undefined) admin.username = rest.username;
-        if (rest.password !== undefined) admin.password = rest.password;
+        if (hashedPassword !== undefined) admin.password = hashedPassword;
         await this.adminRepository.save(admin);
       }
     }
@@ -150,7 +186,7 @@ export class ProfilesService {
         if (rest.phone !== undefined) teacher.phone = rest.phone;
         if (rest.address !== undefined) teacher.address = rest.address;
         if (rest.username !== undefined) teacher.username = rest.username;
-        if (rest.password !== undefined) teacher.password = rest.password;
+        if (hashedPassword !== undefined) teacher.password = hashedPassword;
         await this.teacherRepository.save(teacher);
       }
     }
@@ -163,7 +199,7 @@ export class ProfilesService {
         if (rest.phone !== undefined) superAdmin.phone = rest.phone;
         if (rest.address !== undefined) superAdmin.address = rest.address;
         if (rest.username !== undefined) superAdmin.username = rest.username;
-        if (rest.password !== undefined) superAdmin.password = rest.password;
+        if (hashedPassword !== undefined) superAdmin.password = hashedPassword;
         await this.superAdminRepository.save(superAdmin);
       }
     }
