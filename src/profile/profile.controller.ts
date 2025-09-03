@@ -19,7 +19,7 @@ import { AuthGuard, Roles, RolesGuard } from 'src/auth/auth.guard';
 export class ProfilesController {
   constructor(private readonly profilesService: ProfilesService) {}
 
-  @Roles('admin', 'student')
+  @Roles()
   @UseGuards(AuthGuard, RolesGuard)
   @Post()
   async createProfile(
@@ -48,12 +48,13 @@ export class ProfilesController {
   }
 
   @UseGuards(AuthGuard)
-  @Put(':id')
-  async updateProfile(
-    @Param('id') id: number,
+  @Put()
+  async updateMyProfile(
+    @Req() req: any,
     @Body() updateProfileDto: UpdateProfileDto,
   ): Promise<Profile> {
-    return this.profilesService.updateProfile(id, updateProfileDto);
+    const username = req.user.username;
+    return this.profilesService.updateMyProfile(username, updateProfileDto);
   }
 
   

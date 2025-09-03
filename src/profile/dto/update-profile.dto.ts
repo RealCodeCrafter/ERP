@@ -57,4 +57,9 @@ export class UpdateProfileDto {
   @IsInt()
   @IsPositive()
   teacherId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  superAdminId?: number;
 }
