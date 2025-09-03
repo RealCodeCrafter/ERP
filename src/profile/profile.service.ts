@@ -79,30 +79,30 @@ export class ProfilesService {
     return profile;
   }
 
-  async getMyProfile(username: string): Promise<Profile> {
+  async getMyProfile(userId: number): Promise<Profile> {
     const profile = await this.profileRepository.findOne({
       where: [
-        { student: { username } },
-        { admin: { username } },
-        { teacher: { username } },
-        { SuperAdmin: { username } },
+        { student: { id: userId } },
+        { admin: { id: userId } },
+        { teacher: { id: userId } },
+        { SuperAdmin: { id: userId } },
       ],
       relations: ['student', 'admin', 'teacher', 'SuperAdmin'],
     });
 
     if (!profile) {
-      throw new NotFoundException(`Profile with username ${username} not found`);
+      throw new NotFoundException(`Profile with user ID ${userId} not found`);
     }
 
     return profile;
   }
 
-  async updateMyProfile(username: string, updateProfileDto: UpdateProfileDto): Promise<Profile> {
-    const profile = await this.getMyProfile(username);
+  async updateMyProfile(userId: number, updateProfileDto: UpdateProfileDto): Promise<Profile> {
+    const profile = await this.getMyProfile(userId);
 
     const { studentId, adminId, teacherId, superAdminId, ...rest } = updateProfileDto;
 
-    // Faqat kiritilgan maydonlarni yangilash
+    // Profil maydonlarini yangilash
     if (rest.firstName !== undefined) profile.firstName = rest.firstName;
     if (rest.lastName !== undefined) profile.lastName = rest.lastName;
     if (rest.photo !== undefined) profile.photo = rest.photo;
@@ -112,6 +112,61 @@ export class ProfilesService {
     if (rest.phone !== undefined) profile.phone = rest.phone;
     if (rest.parentsName !== undefined) profile.parentsName = rest.parentsName;
     if (rest.parentPhone !== undefined) profile.parentPhone = rest.parentPhone;
+
+    // Bog'langan foydalanuvchi jadvalini yangilash
+    if (profile.student) {
+      const student = await this.studentRepository.findOne({ where: { id: profile.student.id } });
+      if (student) {
+        if (rest.firstName !== undefined) student.firstName = rest.firstName;
+        if (rest.lastName !== undefined) student.lastName = rest.lastName;
+        if (rest.phone !== undefined) student.phone = rest.phone;
+        if (rest.address !== undefined) student.address = rest.address;
+        if (rest.username !== undefined) student.username = rest.username;
+        if (rest.password !== undefined) student.password = rest.password;
+        if (rest.parentsName !== undefined) student.parentsName = rest.parentsName;
+        if (rest.parentPhone !== undefined) student.parentPhone = rest.parentPhone;
+        await this.studentRepository.save(student);
+      }
+    }
+
+    if (profile.admin) {
+      const admin = await this.adminRepository.findOne({ where: { id: profile.admin.id } });
+      if (admin) {
+        if (rest.firstName !== undefined) admin.firstName = rest.firstName;
+        if (rest.lastName !== undefined) admin.lastName = rest.lastName;
+        if (rest.phone !== undefined) admin.phone = rest.phone;
+        if (rest.address !== undefined) admin.address = rest.address;
+        if (rest.username !== undefined) admin.username = rest.username;
+        if (rest.password !== undefined) admin.password = rest.password;
+        await this.adminRepository.save(admin);
+      }
+    }
+
+    if (profile.teacher) {
+      const teacher = await this.teacherRepository.findOne({ where: { id: profile.teacher.id } });
+      if (teacher) {
+        if (rest.firstName !== undefined) teacher.firstName = rest.firstName;
+        if (rest.lastName !== undefined) teacher.lastName = rest.lastName;
+        if (rest.phone !== undefined) teacher.phone = rest.phone;
+        if (rest.address !== undefined) teacher.address = rest.address;
+        if (rest.username !== undefined) teacher.username = rest.username;
+        if (rest.password !== undefined) teacher.password = rest.password;
+        await this.teacherRepository.save(teacher);
+      }
+    }
+
+    if (profile.SuperAdmin) {
+      const superAdmin = await this.superAdminRepository.findOne({ where: { id: profile.SuperAdmin.id } });
+      if (superAdmin) {
+        if (rest.firstName !== undefined) superAdmin.firstName = rest.firstName;
+        if (rest.lastName !== undefined) superAdmin.lastName = rest.lastName;
+        if (rest.phone !== undefined) superAdmin.phone = rest.phone;
+        if (rest.address !== undefined) superAdmin.address = rest.address;
+        if (rest.username !== undefined) superAdmin.username = rest.username;
+        if (rest.password !== undefined) superAdmin.password = rest.password;
+        await this.superAdminRepository.save(superAdmin);
+      }
+    }
 
     // Aloqalarni faqat kiritilgan bo'lsa yangilash
     if (studentId !== undefined) {
