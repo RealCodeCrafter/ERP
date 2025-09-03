@@ -89,17 +89,12 @@ export class ProfilesService {
 
   async getMyProfile(userId: number): Promise<Profile> {
     const profile = await this.profileRepository.findOne({
-      where: [
-        { student: { id: userId } },
-        { admin: { id: userId } },
-        { teacher: { id: userId } },
-        { SuperAdmin: { id: userId } },
-      ],
+      where: { id: userId },
       relations: ['student', 'admin', 'teacher', 'SuperAdmin'],
     });
 
     if (!profile) {
-      throw new NotFoundException(`Profile with user ID ${userId} not found`);
+      throw new NotFoundException(`Profile with ID ${userId} not found`);
     }
 
     return profile;
@@ -107,50 +102,68 @@ export class ProfilesService {
 
   async updateMyProfile(userId: number, updateProfileDto: UpdateProfileDto): Promise<Profile> {
     const profile = await this.getMyProfile(userId);
+
+    // Faqat kiritilgan maydonlarni yangilash
     const { studentId, adminId, teacherId, superAdminId, ...rest } = updateProfileDto;
 
-    Object.assign(profile, rest);
+    // Faqat mavjud maydonlarni yangilash, qolganlari o'zgarishsiz qoladi
+    if (rest.firstName !== undefined) profile.firstName = rest.firstName;
+    if (rest.lastName !== undefined) profile.lastName = rest.lastName;
+    if (rest.photo !== undefined) profile.photo = rest.photo;
+    if (rest.username !== undefined) profile.username = rest.username;
+    if (rest.password !== undefined) profile.password = rest.password;
+    if (rest.address !== undefined) profile.address = rest.address;
+    if (rest.phone !== undefined) profile.phone = rest.phone;
+    if (rest.parentsName !== undefined) profile.parentsName = rest.parentsName;
+    if (rest.parentPhone !== undefined) profile.parentPhone = rest.parentPhone;
 
-    if (updateProfileDto.password) {
-      profile.password = updateProfileDto.password;
+    // Aloqalarni faqat kiritilgan bo'lsa yangilash
+    if (studentId !== undefined) {
+      if (studentId === null) {
+        profile.student = null;
+      } else {
+        const student = await this.studentRepository.findOne({ where: { id: studentId } });
+        if (!student) {
+          throw new NotFoundException(`Student with ID ${studentId} not found`);
+        }
+        profile.student = student;
+      }
     }
 
-    // Reset relations
-    profile.student = null;
-    profile.admin = null;
-    profile.teacher = null;
-    profile.SuperAdmin = null;
-
-    if (studentId) {
-      const student = await this.studentRepository.findOne({ where: { id: studentId } });
-      if (!student) {
-        throw new NotFoundException(`Student with ID ${studentId} not found`);
+    if (adminId !== undefined) {
+      if (adminId === null) {
+        profile.admin = null;
+      } else {
+        const admin = await this.adminRepository.findOne({ where: { id: adminId } });
+        if (!admin) {
+          throw new NotFoundException(`Admin with ID ${adminId} not found`);
+        }
+        profile.admin = admin;
       }
-      profile.student = student;
     }
 
-    if (adminId) {
-      const admin = await this.adminRepository.findOne({ where: { id: adminId } });
-      if (!admin) {
-        throw new NotFoundException(`Admin with ID ${adminId} not found`);
+    if (teacherId !== undefined) {
+      if (teacherId === null) {
+        profile.teacher = null;
+      } else {
+        const teacher = await this.teacherRepository.findOne({ where: { id: teacherId } });
+        if (!teacher) {
+          throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
+        }
+        profile.teacher = teacher;
       }
-      profile.admin = admin;
     }
 
-    if (teacherId) {
-      const teacher = await this.teacherRepository.findOne({ where: { id: teacherId } });
-      if (!teacher) {
-        throw new NotFoundException(`Teacher with ID ${teacherId} not found`);
+    if (superAdminId !== undefined) {
+      if (superAdminId === null) {
+        profile.SuperAdmin = null;
+      } else {
+        const superAdmin = await this.superAdminRepository.findOne({ where: { id: superAdminId } });
+        if (!superAdmin) {
+          throw new NotFoundException(`SuperAdmin with ID ${superAdminId} not found`);
+        }
+        profile.SuperAdmin = superAdmin;
       }
-      profile.teacher = teacher;
-    }
-
-    if (superAdminId) {
-      const superAdmin = await this.superAdminRepository.findOne({ where: { id: superAdminId } });
-      if (!superAdmin) {
-        throw new NotFoundException(`SuperAdmin with ID ${superAdminId} not found`);
-      }
-      profile.SuperAdmin = superAdmin;
     }
 
     return this.profileRepository.save(profile);
