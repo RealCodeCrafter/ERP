@@ -17,7 +17,7 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: "https://diomend.uz",
+    origin: "*",
     credentials: true,
   });
 

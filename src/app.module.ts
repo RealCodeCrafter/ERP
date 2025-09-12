@@ -2,8 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HttpModule } from '@nestjs/axios';
-import * as crypto from 'crypto';
-(global as any).crypto = crypto;
 
 import { Course } from './courses/entities/course.entity';
 import { Group } from './groups/entities/group.entity';
